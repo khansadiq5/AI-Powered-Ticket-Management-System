@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Ticket;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -15,8 +16,19 @@ class AdminController extends Controller
      */
     public function index()
     {
+        $user = Auth::user();
+
+        $ticketStats = [
+            'total' => Ticket::count(),
+            'open' => Ticket::where('status', 'open')->count(),
+            'in_progress' => Ticket::where('status', 'in_progress')->count(),
+            'resolved' => Ticket::where('status', 'resolved')->count(),
+            'unassigned' => Ticket::unassigned()->count(),
+        ];
+
         return view('admin', [
-            'user' => Auth::user()
+            'user' => $user,
+            'ticketStats' => $ticketStats,
         ]);
     }
 
@@ -95,5 +107,92 @@ class AdminController extends Controller
         $user->delete();
 
         return back()->with('success', 'User deleted successfully.');
+    }
+
+    /**
+     * Display all tickets with filters.
+     */
+    public function tickets(Request $request)
+    {
+        $query = Ticket::with('assignedAgent');
+
+        // Apply filters
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+
+        if ($request->filled('priority')) {
+            $query->where('priority', $request->priority);
+        }
+
+        if ($request->filled('assigned_to')) {
+            if ($request->assigned_to === 'unassigned') {
+                $query->unassigned();
+            } else {
+                $query->where('assigned_to', $request->assigned_to);
+            }
+        }
+
+        if ($request->filled('category')) {
+            $query->where('category', $request->category);
+        }
+
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('ticket_number', 'like', "%{$search}%")
+                    ->orWhere('subject', 'like', "%{$search}%")
+                    ->orWhere('sender_email', 'like', "%{$search}%");
+            });
+        }
+
+        $tickets = $query
+            ->orderByRaw("CASE priority 
+                WHEN 'urgent' THEN 1 
+                WHEN 'high' THEN 2 
+                WHEN 'medium' THEN 3 
+                WHEN 'low' THEN 4 
+                ELSE 5 
+            END ASC")
+            ->orderBy('created_at', 'desc')
+            ->paginate(20);
+
+        $agents = User::whereIn('role', ['agent', 'admin'])->orderBy('name')->get();
+
+        return view('admin-tickets', [
+            'user' => Auth::user(),
+            'tickets' => $tickets,
+            'agents' => $agents,
+            'filters' => $request->only(['status', 'priority', 'assigned_to', 'search', 'category']),
+        ]);
+    }
+
+    /**
+     * Display a single ticket detail for Admin.
+     */
+    public function showTicket(Ticket $ticket)
+    {
+        $user = Auth::user();
+        $agents = User::whereIn('role', ['agent', 'admin'])->orderBy('name')->get();
+
+        return view('ticket-detail', compact('user', 'ticket', 'agents'));
+    }
+
+    /**
+     * Assign a ticket to an agent.
+     */
+    public function assignTicket(Request $request, Ticket $ticket)
+    {
+        $validated = $request->validate([
+            'assigned_to' => ['nullable', 'exists:users,id'],
+        ]);
+
+        $ticket->update(['assigned_to' => $validated['assigned_to']]);
+
+        $agentName = $validated['assigned_to']
+            ? User::find($validated['assigned_to'])->name
+            : 'Unassigned';
+
+        return back()->with('success', "Ticket {$ticket->ticket_number} assigned to {$agentName}.");
     }
 }
