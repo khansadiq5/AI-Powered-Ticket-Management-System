@@ -8,6 +8,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     @vite(['resources/css/app.css'])
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.9/purify.min.js"></script>
     <style>
         body { font-family: 'Outfit', sans-serif; }
 
@@ -414,25 +415,31 @@
                             const replyDiv = document.createElement('div');
                             replyDiv.className = 'flex items-start gap-3.5 p-4 rounded-xl border border-slate-100 bg-slate-50/50 transform scale-95 opacity-0 transition-all duration-300';
                             
-                            const roleBadgeClass = data.reply.user.role === 'admin' 
+                            const cleanInitial = DOMPurify.sanitize(data.reply.user.initial);
+                            const cleanName = DOMPurify.sanitize(data.reply.user.name);
+                            const cleanRole = DOMPurify.sanitize(data.reply.user.role);
+                            const cleanTime = DOMPurify.sanitize(data.reply.created_at_human);
+                            const cleanBody = DOMPurify.sanitize(data.reply.body);
+
+                            const roleBadgeClass = cleanRole === 'admin' 
                                 ? 'bg-rose-50 text-rose-600 border border-rose-100' 
                                 : 'bg-blue-50 text-blue-600 border border-blue-100';
 
                             replyDiv.innerHTML = `
                                 <div class="w-8 h-8 rounded-full bg-slate-200/80 border border-slate-300/30 flex items-center justify-center font-semibold text-xs text-slate-700 flex-shrink-0">
-                                    ${data.reply.user.initial}
+                                    ${cleanInitial}
                                 </div>
                                 <div class="flex-1 min-w-0">
                                     <div class="flex items-center justify-between gap-2 flex-wrap">
                                         <div class="flex items-center gap-2">
-                                            <span class="text-sm font-semibold text-slate-900">${data.reply.user.name}</span>
+                                            <span class="text-sm font-semibold text-slate-900">${cleanName}</span>
                                             <span class="text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${roleBadgeClass}">
-                                                ${data.reply.user.role}
+                                                ${cleanRole}
                                             </span>
                                         </div>
-                                        <span class="text-xs text-slate-400">${data.reply.created_at_human}</span>
+                                        <span class="text-xs text-slate-400">${cleanTime}</span>
                                     </div>
-                                    <div class="text-sm text-slate-800 mt-2 leading-relaxed whitespace-pre-line">${data.reply.body}</div>
+                                    <div class="text-sm text-slate-800 mt-2 leading-relaxed whitespace-pre-line">${cleanBody}</div>
                                 </div>
                             `;
 
