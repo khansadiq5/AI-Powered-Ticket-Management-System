@@ -71,8 +71,8 @@
             <div class="flex flex-wrap items-center gap-2.5 mb-3">
                 <span class="font-mono text-sm text-slate-900 font-semibold bg-slate-200/60 px-3 py-1 rounded-md border border-slate-300/45">{{ $ticket->ticket_number }}</span>
                 <span class="badge-{{ $ticket->priority }} text-xs px-2.5 py-0.5 rounded border font-semibold uppercase tracking-wider">{{ $ticket->priority }}</span>
-                <span class="badge-{{ $ticket->status }} text-xs px-2.5 py-0.5 rounded border font-semibold capitalize">{{ str_replace('_', ' ', $ticket->status) }}</span>
-                <span class="bg-indigo-50 text-indigo-700 border border-indigo-100 text-xs px-2.5 py-0.5 rounded font-semibold">{{ $ticket->category ?? 'General' }}</span>
+                <span id="ticket-status-badge" class="badge-{{ $ticket->status }} text-xs px-2.5 py-0.5 rounded border font-semibold capitalize">{{ str_replace('_', ' ', $ticket->status) }}</span>
+                <span id="ticket-category-badge" class="bg-indigo-50 text-indigo-700 border border-indigo-100 text-xs px-2.5 py-0.5 rounded font-semibold">{{ $ticket->category ?? 'General' }}</span>
             </div>
             <h1 class="text-2xl md:text-3xl font-bold text-slate-900 leading-snug">{{ $ticket->subject }}</h1>
         </div>
@@ -98,46 +98,44 @@
                 </div>
 
                 <!-- Reply Thread Section -->
-                <div class="bg-white border border-slate-200 rounded-xl p-6 space-y-6">
+                <div class="bg-white border border-slate-200 rounded-xl p-6 space-y-6" id="replies-section">
                     <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider border-b border-slate-100 pb-2">Conversation Thread</h3>
 
-                    @if($ticket->replies->isEmpty())
-                        <div class="text-center py-6 text-slate-400 text-sm">
-                            No replies posted yet. Use the form below to start the conversation.
-                        </div>
-                    @else
-                        <div class="space-y-4">
-                            @foreach($ticket->replies as $reply)
-                                <div class="flex items-start gap-3.5 p-4 rounded-xl border border-slate-100 bg-slate-50/50">
-                                    <!-- User Avatar (Initials) -->
-                                    <div class="w-8 h-8 rounded-full bg-slate-200/80 border border-slate-300/30 flex items-center justify-center font-semibold text-xs text-slate-700 flex-shrink-0">
-                                        {{ strtoupper(substr($reply->user->name, 0, 1)) }}
-                                    </div>
-                                    <div class="flex-1 min-w-0">
-                                        <div class="flex items-center justify-between gap-2 flex-wrap">
-                                            <div class="flex items-center gap-2">
-                                                <span class="text-sm font-semibold text-slate-900">{{ $reply->user->name }}</span>
-                                                <span class="text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider {{ $reply->user->role === 'admin' ? 'bg-rose-50 text-rose-600 border border-rose-100' : 'bg-blue-50 text-blue-600 border border-blue-100' }}">
-                                                    {{ $reply->user->role }}
-                                                </span>
-                                            </div>
-                                            <span class="text-xs text-slate-400">{{ $reply->created_at->diffForHumans() }}</span>
-                                        </div>
-                                        <div class="text-sm text-slate-800 mt-2 leading-relaxed whitespace-pre-line">{{ $reply->body }}</div>
-                                    </div>
+                    <div id="no-replies-message" class="{{ $ticket->replies->isEmpty() ? '' : 'hidden' }} text-center py-6 text-slate-400 text-sm">
+                        No replies posted yet. Use the form below to start the conversation.
+                    </div>
+
+                    <div class="space-y-4 {{ $ticket->replies->isEmpty() ? 'hidden' : '' }}" id="replies-container">
+                        @foreach($ticket->replies as $reply)
+                            <div class="flex items-start gap-3.5 p-4 rounded-xl border border-slate-100 bg-slate-50/50">
+                                <!-- User Avatar (Initials) -->
+                                <div class="w-8 h-8 rounded-full bg-slate-200/80 border border-slate-300/30 flex items-center justify-center font-semibold text-xs text-slate-700 flex-shrink-0">
+                                    {{ strtoupper(substr($reply->user->name, 0, 1)) }}
                                 </div>
-                            @endforeach
-                        </div>
-                    @endif
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex items-center justify-between gap-2 flex-wrap">
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-sm font-semibold text-slate-900">{{ $reply->user->name }}</span>
+                                            <span class="text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider {{ $reply->user->role === 'admin' ? 'bg-rose-50 text-rose-600 border border-rose-100' : 'bg-blue-50 text-blue-600 border border-blue-100' }}">
+                                                {{ $reply->user->role }}
+                                            </span>
+                                        </div>
+                                        <span class="text-xs text-slate-400">{{ $reply->created_at->diffForHumans() }}</span>
+                                    </div>
+                                    <div class="text-sm text-slate-800 mt-2 leading-relaxed whitespace-pre-line">{{ $reply->body }}</div>
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
                 </div>
 
                 <!-- Submit Reply Form -->
                 <div class="bg-white border border-slate-200 rounded-xl p-6">
                     <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">Post a Reply</h3>
-                    <form method="POST" action="/agent/tickets/{{ $ticket->id }}/replies" class="m-0">
+                    <form method="POST" action="/agent/tickets/{{ $ticket->id }}/replies" id="reply-form" class="m-0">
                         @csrf
                         <div class="mb-4">
-                            <textarea name="body" rows="4" required placeholder="Type your reply here..." 
+                            <textarea name="body" id="reply-body" rows="4" required placeholder="Type your reply here..." 
                                       class="w-full bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 p-3.5 focus:outline-none focus:ring-1 focus:ring-slate-400 focus:border-slate-400 placeholder:text-slate-400 resize-none"></textarea>
                         </div>
                         <div class="flex justify-end">
@@ -178,12 +176,10 @@
                             <span class="text-slate-500 text-xs">Updated</span>
                             <span class="text-slate-800 font-medium text-xs">{{ $ticket->updated_at->diffForHumans() }}</span>
                         </div>
-                        @if($ticket->assignedAgent)
-                        <div class="flex justify-between items-center pt-2.5 border-t border-slate-100">
+                        <div class="flex justify-between items-center pt-2.5 border-t border-slate-100" id="assigned-agent-row">
                             <span class="text-slate-500 text-xs">Assigned agent</span>
-                            <span class="text-slate-800 font-semibold text-xs">{{ $ticket->assignedAgent->name }}</span>
+                            <span class="text-slate-800 font-semibold text-xs" id="assigned-agent-name">{{ $ticket->assignedAgent ? $ticket->assignedAgent->name : 'Unassigned' }}</span>
                         </div>
-                        @endif
                     </div>
                 </div>
 
@@ -268,5 +264,195 @@
             </div>
         </div>
     </main>
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Helper to show custom premium toasts
+            function showToast(message, type = 'success') {
+                const container = document.getElementById('toast-container');
+                if (!container) return;
+                
+                const toast = document.createElement('div');
+                toast.className = `transform translate-y-2 opacity-0 transition-all duration-300 pointer-events-auto px-4 py-3 rounded-lg shadow-lg text-sm font-semibold flex items-center gap-2 border ${
+                    type === 'success' 
+                        ? 'bg-emerald-50 text-emerald-800 border-emerald-200' 
+                        : 'bg-rose-50 text-rose-800 border-rose-200'
+                }`;
+                
+                const icon = type === 'success'
+                    ? `<svg class="w-4.5 h-4.5 text-emerald-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>`
+                    : `<svg class="w-4.5 h-4.5 text-rose-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>`;
+                    
+                toast.innerHTML = `${icon} <span>${message}</span>`;
+                container.appendChild(toast);
+                
+                // Animate in
+                setTimeout(() => {
+                    toast.classList.remove('translate-y-2', 'opacity-0');
+                }, 10);
+                
+                // Animate out and remove
+                setTimeout(() => {
+                    toast.classList.add('translate-y-2', 'opacity-0');
+                    setTimeout(() => toast.remove(), 300);
+                }, 3000);
+            }
+
+            // Helper to send AJAX requests
+            async function sendAjaxRequest(form, onSuccess) {
+                const url = form.getAttribute('action');
+                const formData = new FormData(form);
+                
+                // Always use POST for FormData requests so PHP parses the body correctly.
+                // Laravel routes PATCH/PUT endpoints using the hidden _method field.
+                const method = 'POST';
+
+                const submitBtn = form.querySelector('button[type="submit"]');
+                const originalBtnText = submitBtn ? submitBtn.innerHTML : '';
+                if (submitBtn) {
+                    submitBtn.disabled = true;
+                    // Mini spinner
+                    submitBtn.innerHTML = `
+                        <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white inline-block" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg> Saving...`;
+                }
+
+                try {
+                    const response = await fetch(url, {
+                        method: method,
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': formData.get('_token')
+                        },
+                        body: formData
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok && data.success) {
+                        showToast(data.message || 'Updated successfully.');
+                        onSuccess(data);
+                    } else {
+                        showToast(data.message || 'An error occurred. Please try again.', 'error');
+                    }
+                } catch (error) {
+                    console.error(error);
+                    showToast('Network error. Please check your connection.', 'error');
+                } finally {
+                    if (submitBtn) {
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = originalBtnText;
+                    }
+                }
+            }
+
+            // Intercept Status Form
+            const statusForm = document.getElementById('status-form');
+            if (statusForm) {
+                statusForm.addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    sendAjaxRequest(statusForm, (data) => {
+                        const badge = document.getElementById('ticket-status-badge');
+                        if (badge) {
+                            badge.textContent = data.status_label;
+                            badge.className = `badge-${data.status} text-xs px-2.5 py-0.5 rounded border font-semibold capitalize`;
+                        }
+                    });
+                });
+            }
+
+            // Intercept Category Form
+            const categoryForm = document.getElementById('category-form');
+            if (categoryForm) {
+                categoryForm.addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    sendAjaxRequest(categoryForm, (data) => {
+                        const badge = document.getElementById('ticket-category-badge');
+                        if (badge) {
+                            badge.textContent = data.category;
+                        }
+                    });
+                });
+            }
+
+            // Intercept agent assign form
+            const assignForm = document.getElementById('assign-form');
+            if (assignForm) {
+                assignForm.addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    sendAjaxRequest(assignForm, (data) => {
+                        const agentNameEl = document.getElementById('assigned-agent-name');
+                        if (agentNameEl) {
+                            agentNameEl.textContent = data.assigned_agent_name;
+                        }
+                    });
+                });
+            }
+
+            // Intercept Replies Form
+            const replyForm = document.getElementById('reply-form');
+            if (replyForm) {
+                replyForm.addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    sendAjaxRequest(replyForm, (data) => {
+                        const noRepliesMsg = document.getElementById('no-replies-message');
+                        if (noRepliesMsg) {
+                            noRepliesMsg.classList.add('hidden');
+                        }
+
+                        const repliesContainer = document.getElementById('replies-container');
+                        if (repliesContainer) {
+                            repliesContainer.classList.remove('hidden');
+
+                            // Create new reply element
+                            const replyDiv = document.createElement('div');
+                            replyDiv.className = 'flex items-start gap-3.5 p-4 rounded-xl border border-slate-100 bg-slate-50/50 transform scale-95 opacity-0 transition-all duration-300';
+                            
+                            const roleBadgeClass = data.reply.user.role === 'admin' 
+                                ? 'bg-rose-50 text-rose-600 border border-rose-100' 
+                                : 'bg-blue-50 text-blue-600 border border-blue-100';
+
+                            replyDiv.innerHTML = `
+                                <div class="w-8 h-8 rounded-full bg-slate-200/80 border border-slate-300/30 flex items-center justify-center font-semibold text-xs text-slate-700 flex-shrink-0">
+                                    ${data.reply.user.initial}
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex items-center justify-between gap-2 flex-wrap">
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-sm font-semibold text-slate-900">${data.reply.user.name}</span>
+                                            <span class="text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${roleBadgeClass}">
+                                                ${data.reply.user.role}
+                                            </span>
+                                        </div>
+                                        <span class="text-xs text-slate-400">${data.reply.created_at_human}</span>
+                                    </div>
+                                    <div class="text-sm text-slate-800 mt-2 leading-relaxed whitespace-pre-line">${data.reply.body}</div>
+                                </div>
+                            `;
+
+                            repliesContainer.appendChild(replyDiv);
+                            
+                            // Simple animation
+                            setTimeout(() => {
+                                replyDiv.classList.remove('scale-95', 'opacity-0');
+                            }, 50);
+                        }
+
+                        // Reset body text
+                        const replyBody = document.getElementById('reply-body');
+                        if (replyBody) {
+                            replyBody.value = '';
+                        }
+                    });
+                });
+            }
+        });
+    </script>
 </body>
 </html>

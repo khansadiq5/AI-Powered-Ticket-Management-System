@@ -194,6 +194,14 @@ class AdminController extends Controller
             ? User::find($validated['assigned_to'])->name
             : 'Unassigned';
 
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'assigned_agent_name' => $agentName,
+                'message' => "Ticket assigned to {$agentName}.",
+            ]);
+        }
+
         return back()->with('success', "Ticket {$ticket->ticket_number} assigned to {$agentName}.");
     }
 }

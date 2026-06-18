@@ -70,6 +70,15 @@ class AgentController extends Controller
 
         $ticket->update(['status' => $validated['status']]);
 
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'status' => $ticket->status,
+                'status_label' => str_replace('_', ' ', $ticket->status),
+                'message' => "Ticket status updated to " . str_replace('_', ' ', $ticket->status) . ".",
+            ]);
+        }
+
         return back()->with('success', "Ticket {$ticket->ticket_number} status updated to {$validated['status']}.");
     }
 
@@ -90,6 +99,14 @@ class AgentController extends Controller
 
         $ticket->update(['category' => $validated['category']]);
 
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'category' => $ticket->category,
+                'message' => "Ticket category updated to {$ticket->category}.",
+            ]);
+        }
+
         return back()->with('success', "Ticket {$ticket->ticket_number} category updated to {$validated['category']}.");
     }
 
@@ -108,10 +125,27 @@ class AgentController extends Controller
             'body' => ['required', 'string', 'min:1'],
         ]);
 
-        $ticket->replies()->create([
+        $reply = $ticket->replies()->create([
             'user_id' => $user->id,
             'body' => $validated['body'],
         ]);
+
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Reply posted successfully.',
+                'reply' => [
+                    'id' => $reply->id,
+                    'body' => $reply->body,
+                    'created_at_human' => $reply->created_at->diffForHumans(),
+                    'user' => [
+                        'name' => $user->name,
+                        'role' => $user->role,
+                        'initial' => strtoupper(substr($user->name, 0, 1)),
+                    ]
+                ]
+            ]);
+        }
 
         return back()->with('success', 'Reply posted successfully.');
     }
