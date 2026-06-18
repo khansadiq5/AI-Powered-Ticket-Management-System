@@ -166,6 +166,27 @@ class TicketSystemE2ETest extends TestCase
         $response->assertDontSee('Assign Agent');
         $response->assertSee('Update Status');
 
+        // Agent updates ticket category to "Technical"
+        $response = $this->actingAs($agent)->patch("/agent/tickets/{$classifiedTicket->id}/category", [
+            'category' => 'Technical',
+        ]);
+        $response->assertRedirect();
+        $this->assertDatabaseHas('tickets', [
+            'id' => $classifiedTicket->id,
+            'category' => 'Technical',
+        ]);
+
+        // Agent posts a reply
+        $response = $this->actingAs($agent)->post("/agent/tickets/{$classifiedTicket->id}/replies", [
+            'body' => 'I have processed your technical query.',
+        ]);
+        $response->assertRedirect();
+        $this->assertDatabaseHas('ticket_replies', [
+            'ticket_id' => $classifiedTicket->id,
+            'user_id' => $agent->id,
+            'body' => 'I have processed your technical query.',
+        ]);
+
         // Agent updates ticket status to "resolved"
         $response = $this->actingAs($agent)->patch("/agent/tickets/{$classifiedTicket->id}/status", [
             'status' => 'resolved',
@@ -177,6 +198,40 @@ class TicketSystemE2ETest extends TestCase
         ]);
 
         // Logout Agent
+        $this->post('/logout');
+        $this->assertGuest();
+
+        // ---------------------------------------------------------------------
+        // 6. ADMIN UPDATES CATEGORY & POSTS REPLY
+        // ---------------------------------------------------------------------
+        $this->post('/login', [
+            'email' => 'admin@helpdesk.com',
+            'password' => 'admin-password',
+        ]);
+        $this->assertAuthenticatedAs($admin);
+
+        // Admin updates category to "Refund"
+        $response = $this->actingAs($admin)->patch("/agent/tickets/{$classifiedTicket->id}/category", [
+            'category' => 'Refund',
+        ]);
+        $response->assertRedirect();
+        $this->assertDatabaseHas('tickets', [
+            'id' => $classifiedTicket->id,
+            'category' => 'Refund',
+        ]);
+
+        // Admin posts a reply
+        $response = $this->actingAs($admin)->post("/agent/tickets/{$classifiedTicket->id}/replies", [
+            'body' => 'Approved refund request.',
+        ]);
+        $response->assertRedirect();
+        $this->assertDatabaseHas('ticket_replies', [
+            'ticket_id' => $classifiedTicket->id,
+            'user_id' => $admin->id,
+            'body' => 'Approved refund request.',
+        ]);
+
+        // Logout Admin
         $this->post('/logout');
         $this->assertGuest();
     }

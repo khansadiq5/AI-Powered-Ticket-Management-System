@@ -174,6 +174,7 @@ class AdminController extends Controller
     {
         $user = Auth::user();
         $agents = User::whereIn('role', ['agent', 'admin'])->orderBy('name')->get();
+        $ticket->load('replies.user');
 
         return view('ticket-detail', compact('user', 'ticket', 'agents'));
     }

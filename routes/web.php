@@ -42,5 +42,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/agent', [AgentController::class, 'index']);
         Route::get('/agent/tickets/{ticket}', [AgentController::class, 'show']);
         Route::patch('/agent/tickets/{ticket}/status', [AgentController::class, 'updateStatus']);
+        Route::patch('/agent/tickets/{ticket}/category', [AgentController::class, 'updateCategory']);
+        Route::post('/agent/tickets/{ticket}/replies', [AgentController::class, 'storeReply']);
     });
 });

@@ -193,7 +193,7 @@
                         <tr class="ticket-row">
                             <!-- Ticket Number -->
                             <td class="px-6 py-4 whitespace-nowrap">
-                                <a href="/agent/tickets/{{ $ticket->id }}" class="ticket-row-link font-mono text-sm text-indigo-600 font-semibold hover:underline">
+                                <a href="/agent/tickets/{{ $ticket->id }}" class="ticket-row-link font-mono text-sm font-semibold cursor-pointer">
                                     {{ $ticket->ticket_number }}
                                 </a>
                             </td>

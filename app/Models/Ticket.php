@@ -73,6 +73,14 @@ class Ticket extends Model
     }
 
     /**
+     * Get the replies for this ticket.
+     */
+    public function replies(): HasMany
+    {
+        return $this->hasMany(TicketReply::class);
+    }
+
+    /**
      * Scope: only open tickets.
      */
     public function scopeOpen($query)

@@ -72,4 +72,12 @@ class User extends Authenticatable
     {
         return $this->hasMany(Ticket::class, 'assigned_to');
     }
+
+    /**
+     * Get all replies posted by this user.
+     */
+    public function replies(): HasMany
+    {
+        return $this->hasMany(TicketReply::class);
+    }
 }

@@ -96,6 +96,58 @@
                     <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">Email Message</h3>
                     <div class="email-body text-sm text-slate-800">{{ $ticket->body }}</div>
                 </div>
+
+                <!-- Reply Thread Section -->
+                <div class="bg-white border border-slate-200 rounded-xl p-6 space-y-6">
+                    <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider border-b border-slate-100 pb-2">Conversation Thread</h3>
+
+                    @if($ticket->replies->isEmpty())
+                        <div class="text-center py-6 text-slate-400 text-sm">
+                            No replies posted yet. Use the form below to start the conversation.
+                        </div>
+                    @else
+                        <div class="space-y-4">
+                            @foreach($ticket->replies as $reply)
+                                <div class="flex items-start gap-3.5 p-4 rounded-xl border border-slate-100 bg-slate-50/50">
+                                    <!-- User Avatar (Initials) -->
+                                    <div class="w-8 h-8 rounded-full bg-slate-200/80 border border-slate-300/30 flex items-center justify-center font-semibold text-xs text-slate-700 flex-shrink-0">
+                                        {{ strtoupper(substr($reply->user->name, 0, 1)) }}
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <div class="flex items-center justify-between gap-2 flex-wrap">
+                                            <div class="flex items-center gap-2">
+                                                <span class="text-sm font-semibold text-slate-900">{{ $reply->user->name }}</span>
+                                                <span class="text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider {{ $reply->user->role === 'admin' ? 'bg-rose-50 text-rose-600 border border-rose-100' : 'bg-blue-50 text-blue-600 border border-blue-100' }}">
+                                                    {{ $reply->user->role }}
+                                                </span>
+                                            </div>
+                                            <span class="text-xs text-slate-400">{{ $reply->created_at->diffForHumans() }}</span>
+                                        </div>
+                                        <div class="text-sm text-slate-800 mt-2 leading-relaxed whitespace-pre-line">{{ $reply->body }}</div>
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                    @endif
+                </div>
+
+                <!-- Submit Reply Form -->
+                <div class="bg-white border border-slate-200 rounded-xl p-6">
+                    <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">Post a Reply</h3>
+                    <form method="POST" action="/agent/tickets/{{ $ticket->id }}/replies" class="m-0">
+                        @csrf
+                        <div class="mb-4">
+                            <textarea name="body" rows="4" required placeholder="Type your reply here..." 
+                                      class="w-full bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 p-3.5 focus:outline-none focus:ring-1 focus:ring-slate-400 focus:border-slate-400 placeholder:text-slate-400 resize-none"></textarea>
+                        </div>
+                        <div class="flex justify-end">
+                            <button type="submit" 
+                                    class="bg-slate-900 hover:bg-slate-800 text-white font-semibold rounded-lg py-2.5 px-6 text-sm transition cursor-pointer">
+                                Submit Reply
+                            </button>
+                        </div>
+                    </form>
+                </div>
             </div>
 
             <!-- Sidebar Column -->
@@ -157,6 +209,31 @@
                         <button type="submit"
                                 class="w-full bg-slate-900 hover:bg-slate-800 text-white font-semibold rounded-lg py-2.5 px-4 text-sm transition cursor-pointer">
                             Save Status
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Category Update Form -->
+                <div class="bg-white border border-slate-200 rounded-xl p-5">
+                    <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">Update Category</h3>
+                    <form method="POST" action="/agent/tickets/{{ $ticket->id }}/category" id="category-form" class="m-0">
+                        @csrf
+                        @method('PATCH')
+                        <div class="relative mb-3">
+                            <select name="category" id="category-select"
+                                    class="w-full bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 py-2.5 px-4 focus:outline-none focus:ring-1 focus:ring-slate-400 focus:border-slate-400 appearance-none cursor-pointer pr-10">
+                                <option value="General" {{ ($ticket->category ?? 'General') === 'General' ? 'selected' : '' }}>General</option>
+                                <option value="Refund" {{ $ticket->category === 'Refund' ? 'selected' : '' }}>Refund</option>
+                                <option value="Technical" {{ $ticket->category === 'Technical' ? 'selected' : '' }}>Technical</option>
+                            </select>
+                            <!-- Arrow icon -->
+                            <div class="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            </div>
+                        </div>
+                        <button type="submit"
+                                class="w-full bg-slate-900 hover:bg-slate-800 text-white font-semibold rounded-lg py-2.5 px-4 text-sm transition cursor-pointer">
+                            Save Category
                         </button>
                     </form>
                 </div>

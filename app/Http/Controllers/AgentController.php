@@ -48,6 +48,8 @@ class AgentController extends Controller
             abort(403, 'You are not authorized to view this ticket.');
         }
 
+        $ticket->load('replies.user');
+
         return view('ticket-detail', compact('user', 'ticket'));
     }
 
@@ -69,5 +71,48 @@ class AgentController extends Controller
         $ticket->update(['status' => $validated['status']]);
 
         return back()->with('success', "Ticket {$ticket->ticket_number} status updated to {$validated['status']}.");
+    }
+
+    /**
+     * Update the category of a ticket.
+     */
+    public function updateCategory(Request $request, Ticket $ticket)
+    {
+        $user = Auth::user();
+
+        if ($ticket->assigned_to !== $user->id && $user->role !== 'admin') {
+            abort(403, 'You are not authorized to update this ticket.');
+        }
+
+        $validated = $request->validate([
+            'category' => ['required', 'in:General,Refund,Technical'],
+        ]);
+
+        $ticket->update(['category' => $validated['category']]);
+
+        return back()->with('success', "Ticket {$ticket->ticket_number} category updated to {$validated['category']}.");
+    }
+
+    /**
+     * Store a new reply for a ticket.
+     */
+    public function storeReply(Request $request, Ticket $ticket)
+    {
+        $user = Auth::user();
+
+        if ($ticket->assigned_to !== $user->id && $user->role !== 'admin') {
+            abort(403, 'You are not authorized to reply to this ticket.');
+        }
+
+        $validated = $request->validate([
+            'body' => ['required', 'string', 'min:1'],
+        ]);
+
+        $ticket->replies()->create([
+            'user_id' => $user->id,
+            'body' => $validated['body'],
+        ]);
+
+        return back()->with('success', 'Reply posted successfully.');
     }
 }
