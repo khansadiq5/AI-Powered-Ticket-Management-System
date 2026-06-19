@@ -22,6 +22,7 @@ Route::post('/login', [AuthController::class, 'authenticate']);
 // Authenticated Routes
 Route::middleware('auth')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
+    Route::post('/tickets/{ticket}/summarize', [AgentController::class, 'summarize']);
 
     // Admin Routes
     Route::middleware('admin')->group(function () {

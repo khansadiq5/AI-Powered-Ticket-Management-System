@@ -172,16 +172,22 @@
             <!-- Left Column: Main support ticket & thread -->
             <div class="lg:col-span-2 space-y-6">
                 <!-- AI Summary -->
-                @if($ticket->ai_summary)
-                <div class="ai-card rounded-2xl p-5 shadow-xs border border-emerald-200/50 bg-emerald-50/40 relative overflow-hidden">
+                <div id="ai-summary-card" class="ai-card rounded-2xl p-5 shadow-xs border border-emerald-200/50 bg-emerald-50/40 relative overflow-hidden">
                     <div class="absolute right-0 top-0 translate-x-4 -translate-y-4 w-24 h-24 bg-emerald-100/30 rounded-full blur-xl"></div>
                     <div class="flex items-center gap-2 mb-2.5 relative z-10">
                         <span class="text-lg">🤖</span>
                         <h3 class="text-xs font-bold text-emerald-800 uppercase tracking-wider">AI Copilot Summary</h3>
                     </div>
-                    <p class="text-sm text-emerald-950 leading-relaxed relative z-10">{{ $ticket->ai_summary }}</p>
+                    <p id="ai-summary-text" class="text-sm text-emerald-950 leading-relaxed relative z-10 mb-3">
+                        {{ $ticket->ai_summary ?? 'No summary generated yet. Click "Summarize" below to analyze the ticket and conversation history.' }}
+                    </p>
+                    <div class="relative z-10 flex justify-start">
+                        <button type="button" id="summarize-btn"
+                                class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-emerald-200 text-emerald-800 bg-emerald-50/80 hover:bg-emerald-100/80 font-bold text-xs transition cursor-pointer shadow-3xs active:scale-95 duration-200">
+                            <span>✨</span> Summarize
+                        </button>
+                    </div>
                 </div>
-                @endif
 
                 <!-- Combined Ticket Conversation Thread -->
                 <div class="bg-white border border-slate-200/80 rounded-2xl shadow-xs overflow-hidden flex flex-col">
@@ -671,6 +677,48 @@
                         polishBtn.disabled = false;
                         polishBtn.innerHTML = originalBtnText;
                         updatePolishBtnState();
+                    }
+                });
+            }
+
+            // Summarize Ticket Functionality
+            const summarizeBtn = document.getElementById('summarize-btn');
+            const aiSummaryText = document.getElementById('ai-summary-text');
+            
+            if (summarizeBtn && aiSummaryText) {
+                summarizeBtn.addEventListener('click', async () => {
+                    const originalBtnText = summarizeBtn.innerHTML;
+                    summarizeBtn.disabled = true;
+                    summarizeBtn.innerHTML = `
+                        <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-emerald-800 inline-block" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg> Summarizing...`;
+                    
+                    try {
+                        const csrfToken = document.querySelector('#reply-form input[name="_token"]').value;
+                        const response = await fetch(`/tickets/{{ $ticket->id }}/summarize`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json',
+                                'X-CSRF-TOKEN': csrfToken
+                            }
+                        });
+                        
+                        const data = await response.json();
+                        if (response.ok && data.success) {
+                            aiSummaryText.textContent = data.summary;
+                            showToast('Summary re-generated successfully!');
+                        } else {
+                            showToast(data.message || 'An error occurred while generating summary.', 'error');
+                        }
+                    } catch (error) {
+                        console.error(error);
+                        showToast('Network error. Please check your connection.', 'error');
+                    } finally {
+                        summarizeBtn.disabled = false;
+                        summarizeBtn.innerHTML = originalBtnText;
                     }
                 });
             }

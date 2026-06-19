@@ -293,4 +293,64 @@ class TicketSystemE2ETest extends TestCase
             'polished' => 'Dear Jane, we have received your request and will process your refund shortly.',
         ]);
     }
+
+    /**
+     * Test the ticket summarization endpoint using Gemini API.
+     */
+    public function test_summarize_ticket(): void
+    {
+        $agent = User::create([
+            'name' => 'Support Agent 1',
+            'email' => 'agent1@helpdesk.com',
+            'password' => bcrypt('agent-password'),
+            'role' => 'agent',
+        ]);
+
+        $ticket = Ticket::create([
+            'subject' => 'Billing inquiry',
+            'body' => 'I would like a refund please.',
+            'sender_name' => 'Jane Customer',
+            'sender_email' => 'jane@customer.com',
+            'status' => 'open',
+            'priority' => 'medium',
+            'assigned_to' => $agent->id,
+        ]);
+
+        // Fake the Gemini API call for summarization
+        config(['services.gemini.api_key' => 'fake-api-key']);
+        Http::fake([
+            'generativelanguage.googleapis.com/*' => Http::response([
+                'candidates' => [
+                    [
+                        'content' => [
+                            'parts' => [
+                                [
+                                    'text' => 'The customer Jane is requesting a refund for a billing inquiry. The agent is assigned to handle it.'
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
+            ], 200)
+        ]);
+
+        // Request without authentication should fail
+        $response = $this->postJson("/tickets/{$ticket->id}/summarize");
+        $response->assertStatus(401);
+
+        // Authenticate agent
+        $response = $this->actingAs($agent)->postJson("/tickets/{$ticket->id}/summarize");
+
+        $response->assertStatus(200);
+        $response->assertJson([
+            'success' => true,
+            'summary' => 'The customer Jane is requesting a refund for a billing inquiry. The agent is assigned to handle it.',
+        ]);
+
+        // Verify the database has been updated
+        $this->assertEquals(
+            'The customer Jane is requesting a refund for a billing inquiry. The agent is assigned to handle it.',
+            $ticket->fresh()->ai_summary
+        );
+    }
 }
