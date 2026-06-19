@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Jobs\ClassifyTicketJob;
+use App\Jobs\ProcessInboundEmailJob;
 use App\Models\EmailLog;
 use App\Models\Ticket;
 use App\Models\TicketReply;
@@ -21,10 +21,8 @@ class PostmarkWebhookController extends Controller
      * Postmark sends a JSON payload on every inbound email. This method:
      *  1. Validates the shared-secret URL token.
      *  2. Parses the Postmark JSON (From, Subject, TextBody, Headers).
-     *  3. Deduplicates via the Message-ID in email_logs.
-     *  4. Detects threading (reply to existing ticket) or creates a new ticket.
-     *  5. For new tickets, dispatches ClassifyTicketJob for AI classification.
-     *  6. Returns 200 OK so Postmark does not retry.
+     *  3. Dispatches ProcessInboundEmailJob to handle processing asynchronously.
+     *  4. Returns 200 OK instantly.
      *
      * @see https://postmarkapp.com/developer/webhooks/inbound-webhook
      */
@@ -71,242 +69,31 @@ class PostmarkWebhookController extends Controller
         $inReplyTo   = $this->getHeaderValue($headers, 'In-Reply-To');
         $references  = $this->getHeaderValue($headers, 'References');
 
-        Log::info('PostmarkWebhook: Parsed payload.', [
+        Log::info('PostmarkWebhook: Dispatching inbound email processing job.', [
+            'from_email'  => $fromEmail,
+            'subject'     => $subject,
+            'message_id'  => $messageId,
+        ]);
+
+        // Dispatch background processing
+        ProcessInboundEmailJob::dispatch([
             'from_email'  => $fromEmail,
             'from_name'   => $fromName,
             'subject'     => $subject,
+            'body'        => $body,
             'message_id'  => $messageId,
             'in_reply_to' => $inReplyTo,
             'references'  => $references,
         ]);
 
-        // ------------------------------------------------------------------
-        // 4. DUPLICATE CHECK (via Message-ID in email_logs)
-        // ------------------------------------------------------------------
-        if (!empty($messageId) && EmailLog::where('message_id', $messageId)->exists()) {
-            Log::info('PostmarkWebhook: Duplicate email skipped.', ['message_id' => $messageId]);
-
-            EmailLog::create([
-                'message_id' => $messageId,
-                'from'       => $fromEmail,
-                'subject'    => $subject,
-                'status'     => 'duplicate',
-            ]);
-
-            return response()->json(['status' => 'duplicate', 'message' => 'Email already processed.']);
-        }
-
-        // ------------------------------------------------------------------
-        // 5. THREAD DETECTION — Is this a reply to an existing ticket?
-        // ------------------------------------------------------------------
-        $matchedTicket = $this->findExistingTicket($inReplyTo, $references, $subject);
-
-        if ($matchedTicket) {
-            return $this->handleReply($matchedTicket, $fromEmail, $fromName, $subject, $body, $messageId);
-        }
-
-        // ------------------------------------------------------------------
-        // 6. NEW TICKET CREATION
-        // ------------------------------------------------------------------
-        return $this->handleNewTicket($fromEmail, $fromName, $subject, $body, $messageId);
+        return response()->json([
+            'status'  => 'queued',
+            'message' => 'Email queued for processing.',
+        ], 200);
     }
 
     // ======================================================================
     //  PRIVATE METHODS
-    // ======================================================================
-
-    /**
-     * Attempt to find an existing ticket by threading headers or subject tag.
-     *
-     * Strategy (in order of precedence):
-     *  1. Match In-Reply-To / References against tickets.message_id
-     *  2. Match In-Reply-To / References against email_logs.message_id → ticket
-     *  3. Match TKT-XXXXX pattern in the Subject line
-     */
-    private function findExistingTicket(?string $inReplyTo, ?string $references, string $subject): ?Ticket
-    {
-        // Build a list of candidate message IDs from threading headers
-        $targetIds = $this->parseMessageIds($inReplyTo, $references);
-
-        // --- Layer 1: Direct match on tickets.message_id ---
-        if (!empty($targetIds)) {
-            $ticket = Ticket::whereIn('message_id', $targetIds)->first();
-            if ($ticket) {
-                Log::info('PostmarkWebhook: Thread matched via tickets.message_id.', [
-                    'ticket_number' => $ticket->ticket_number,
-                ]);
-                return $ticket;
-            }
-        }
-
-        // --- Layer 2: Match via email_logs.message_id → ticket ---
-        if (!empty($targetIds)) {
-            $log = EmailLog::whereIn('message_id', $targetIds)
-                ->whereNotNull('ticket_id')
-                ->first();
-
-            if ($log) {
-                $ticket = Ticket::find($log->ticket_id);
-                if ($ticket) {
-                    Log::info('PostmarkWebhook: Thread matched via email_logs.message_id.', [
-                        'ticket_number' => $ticket->ticket_number,
-                        'log_id'        => $log->id,
-                    ]);
-                    return $ticket;
-                }
-            }
-        }
-
-        // --- Layer 3: Match TKT-XXXXX in the subject ---
-        if (preg_match('/TKT-\d{5}/i', $subject, $matches)) {
-            $ticketNumber = strtoupper($matches[0]);
-            $ticket = Ticket::where('ticket_number', $ticketNumber)->first();
-
-            if ($ticket) {
-                Log::info('PostmarkWebhook: Thread matched via subject ticket number.', [
-                    'ticket_number' => $ticketNumber,
-                ]);
-                return $ticket;
-            }
-        }
-
-        return null;
-    }
-
-    /**
-     * Handle an inbound email that is a reply to an existing ticket.
-     *
-     * Creates a customer user if needed, appends the message as a TicketReply
-     * with message_type = 'incoming', reopens the ticket if resolved/closed,
-     * and logs the email.
-     */
-    private function handleReply(Ticket $ticket, string $fromEmail, ?string $fromName, string $subject, string $body, string $messageId): JsonResponse
-    {
-        // Find or create the customer user
-        $customerUser = User::where('email', $fromEmail)->first();
-
-        if (!$customerUser) {
-            $customerUser = User::create([
-                'name'     => $fromName ?? explode('@', $fromEmail)[0],
-                'email'    => $fromEmail,
-                'password' => Hash::make(Str::random(32)),
-                'role'     => 'customer',
-            ]);
-
-            Log::info('PostmarkWebhook: Created customer user for reply.', [
-                'user_id' => $customerUser->id,
-                'email'   => $fromEmail,
-            ]);
-        }
-
-        // Save the reply as a TicketReply with message_type = incoming
-        TicketReply::create([
-            'ticket_id'    => $ticket->id,
-            'user_id'      => $customerUser->id,
-            'body'         => $body,
-            'message_type' => 'incoming',
-        ]);
-
-        // Reopen the ticket if it was resolved or closed
-        if (in_array($ticket->status, ['resolved', 'closed'])) {
-            $ticket->update(['status' => 'open']);
-            Log::info('PostmarkWebhook: Ticket reopened by customer reply.', [
-                'ticket_number' => $ticket->ticket_number,
-            ]);
-        }
-
-        // Log the processed email
-        EmailLog::create([
-            'message_id' => !empty($messageId) ? $messageId : 'postmark-' . now()->timestamp . '-' . Str::random(8),
-            'from'       => $fromEmail,
-            'subject'    => $subject,
-            'status'     => 'processed',
-            'ticket_id'  => $ticket->id,
-        ]);
-
-        Log::info('PostmarkWebhook: Reply appended to existing ticket.', [
-            'ticket_number' => $ticket->ticket_number,
-            'from'          => $fromEmail,
-        ]);
-
-        return response()->json([
-            'status'        => 'reply_added',
-            'ticket_number' => $ticket->ticket_number,
-        ]);
-    }
-
-    /**
-     * Handle an inbound email that starts a new ticket.
-     *
-     * Creates the ticket with source = 'email', dispatches ClassifyTicketJob
-     * for AI classification + auto-resolution, and logs the email.
-     */
-    private function handleNewTicket(string $fromEmail, ?string $fromName, string $subject, string $body, string $messageId): JsonResponse
-    {
-        try {
-            $ticket = Ticket::create([
-                'subject'      => $subject,
-                'body'         => $body,
-                'sender_name'  => $fromName,
-                'sender_email' => $fromEmail,
-                'status'       => 'new',
-                'priority'     => 'medium',
-                'message_id'   => !empty($messageId) ? $messageId : null,
-                'source'       => 'email',
-            ]);
-
-            // Dispatch AI classification (runs async via queue)
-            try {
-                ClassifyTicketJob::dispatch($ticket);
-            } catch (\Throwable $dispatchEx) {
-                // Queue unavailable (e.g. Redis not installed) — set status to
-                // 'open' so ticket is visible on admin/agent dashboards
-                // (they filter out 'new' and 'processing').
-                $ticket->update(['status' => 'open']);
-
-                Log::warning('PostmarkWebhook: Failed to dispatch ClassifyTicketJob (queue may be unavailable). Ticket set to open.', [
-                    'ticket_number' => $ticket->ticket_number,
-                    'error'         => $dispatchEx->getMessage(),
-                ]);
-            }
-
-            // Log the processed email
-            EmailLog::create([
-                'message_id' => !empty($messageId) ? $messageId : 'postmark-' . now()->timestamp . '-' . Str::random(8),
-                'from'       => $fromEmail,
-                'subject'    => $subject,
-                'status'     => 'processed',
-                'ticket_id'  => $ticket->id,
-            ]);
-
-            Log::info('PostmarkWebhook: New ticket created.', [
-                'ticket_number' => $ticket->ticket_number,
-                'from'          => $fromEmail,
-                'subject'       => $subject,
-            ]);
-
-            return response()->json([
-                'status'        => 'ticket_created',
-                'ticket_number' => $ticket->ticket_number,
-            ], 201);
-
-        } catch (\Exception $e) {
-            Log::error('PostmarkWebhook: Failed to create ticket.', [
-                'error'   => $e->getMessage(),
-                'from'    => $fromEmail,
-                'subject' => $subject,
-            ]);
-
-            // Still return 200 to prevent Postmark from retrying indefinitely
-            return response()->json([
-                'status'  => 'error',
-                'message' => 'Failed to process email.',
-            ], 500);
-        }
-    }
-
-    // ======================================================================
-    //  HELPER METHODS
     // ======================================================================
 
     /**
@@ -359,38 +146,5 @@ class PostmarkWebhookController extends Controller
         }
 
         return null;
-    }
-
-    /**
-     * Parse In-Reply-To and References headers into a clean array of message IDs.
-     *
-     * Message IDs typically look like: <abc123@domain.com>
-     * References can contain multiple space-separated IDs.
-     *
-     * @return array<string> Cleaned message IDs (without angle brackets)
-     */
-    private function parseMessageIds(?string $inReplyTo, ?string $references): array
-    {
-        $ids = [];
-
-        if (!empty($inReplyTo)) {
-            $cleaned = trim($inReplyTo, " \t\n\r\0\x0B<>");
-            if (!empty($cleaned)) {
-                $ids[] = $cleaned;
-            }
-        }
-
-        if (!empty($references)) {
-            // References can contain multiple message IDs separated by whitespace
-            $parts = preg_split('/\s+/', $references);
-            foreach ($parts as $part) {
-                $cleaned = trim($part, " \t\n\r\0\x0B<>");
-                if (!empty($cleaned)) {
-                    $ids[] = $cleaned;
-                }
-            }
-        }
-
-        return array_values(array_unique(array_filter($ids)));
     }
 }

@@ -400,22 +400,6 @@ class TicketSystemE2ETest extends TestCase
                                     [
                                         'text' => json_encode([
                                             'category' => 'Technical',
-                                            'priority' => 'high',
-                                            'summary' => 'Forgot password assistance',
-                                        ])
-                                    ]
-                                ]
-                            ]
-                        ]
-                    ]
-                ], 200)
-                ->push([
-                    'candidates' => [
-                        [
-                            'content' => [
-                                'parts' => [
-                                    [
-                                        'text' => json_encode([
                                             'resolved' => true,
                                             'reply' => 'To reset your password, please go to the login page and click Forgot Password.',
                                         ])
@@ -622,16 +606,6 @@ class TicketSystemE2ETest extends TestCase
                         'content' => ['parts' => [[
                             'text' => json_encode([
                                 'category' => 'Technical',
-                                'priority' => 'high',
-                                'summary' => 'Forgot password assistance',
-                            ])
-                        ]]]
-                    ]]
-                ], 200)
-                ->push([
-                    'candidates' => [[
-                        'content' => ['parts' => [[
-                            'text' => json_encode([
                                 'resolved' => true,
                                 'reply' => 'Use the reset password form.',
                             ])
@@ -668,17 +642,7 @@ class TicketSystemE2ETest extends TestCase
                     'candidates' => [[
                         'content' => ['parts' => [[
                             'text' => json_encode([
-                                'category' => 'Gibberish',
-                                'priority' => 'low',
-                                'summary' => 'gibberish query',
-                            ])
-                        ]]]
-                    ]]
-                ], 200)
-                ->push([
-                    'candidates' => [[
-                        'content' => ['parts' => [[
-                            'text' => json_encode([
+                                'category' => 'General',
                                 'resolved' => false,
                                 'reply' => '',
                             ])

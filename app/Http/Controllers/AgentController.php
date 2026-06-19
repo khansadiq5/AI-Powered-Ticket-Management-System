@@ -97,7 +97,7 @@ class AgentController extends Controller
         }
 
         $validated = $request->validate([
-            'category' => ['required', 'in:General,Refund,Technical'],
+            'category' => ['required', 'in:General,Refund,Technical,Auth,Billing'],
         ]);
 
         $ticket->update(['category' => $validated['category']]);

@@ -337,6 +337,8 @@
                                             <option value="General" {{ ($ticket->category ?? 'General') === 'General' ? 'selected' : '' }}>General</option>
                                             <option value="Refund" {{ $ticket->category === 'Refund' ? 'selected' : '' }}>Refund</option>
                                             <option value="Technical" {{ $ticket->category === 'Technical' ? 'selected' : '' }}>Technical</option>
+                                            <option value="Auth" {{ $ticket->category === 'Auth' ? 'selected' : '' }}>Auth</option>
+                                            <option value="Billing" {{ $ticket->category === 'Billing' ? 'selected' : '' }}>Billing</option>
                                         </select>
                                         <div class="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
                                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
