@@ -15,20 +15,33 @@
 <body class="min-h-screen flex flex-col text-slate-900 bg-slate-50">
 
     <!-- Navbar -->
-    <nav class="bg-white border-b border-slate-200/80 py-4 px-6 md:px-8 flex justify-between items-center sticky top-0 z-40">
-        <a href="/admin" class="text-lg font-bold tracking-wider text-slate-900">TICKET SYSTEM</a>
+    <nav class="bg-white border-b border-slate-200/80 h-16 px-6 md:px-8 flex justify-between items-center sticky top-0 z-40">
+        <!-- Left Side: Brand Logo -->
+        <a href="{{ $user->role === 'admin' ? '/admin' : '/agent' }}" class="text-lg tracking-wider text-slate-900 flex-shrink-0 flex items-center gap-1.5">
+            <span class="font-extrabold tracking-tight text-slate-950">TICKET</span>
+            <span class="font-light text-slate-400">SYSTEM</span>
+        </a>
         
-        <!-- Desktop Navigation Actions -->
+        <!-- Center: Desktop Navigation Links -->
+        <div class="hidden md:flex items-center gap-2 h-full">
+            @if($user->role === 'admin')
+                <a href="/admin" class="{{ Request::is('admin') ? 'bg-slate-900 text-white shadow-xs font-semibold' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80 font-medium' }} text-sm px-4 py-2 rounded-lg transition duration-200">Dashboard</a>
+                <a href="/admin/users" class="{{ Request::is('admin/users*') ? 'bg-slate-900 text-white shadow-xs font-semibold' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80 font-medium' }} text-sm px-4 py-2 rounded-lg transition duration-200">Users</a>
+                <a href="/admin/tickets" class="{{ Request::is('admin/tickets*') || (Request::is('agent/tickets*') && $user->role === 'admin') ? 'bg-slate-900 text-white shadow-xs font-semibold' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80 font-medium' }} text-sm px-4 py-2 rounded-lg transition duration-200">Tickets</a>
+            @else
+                <a href="/agent" class="bg-slate-900 text-white shadow-xs font-semibold text-sm px-4 py-2 rounded-lg transition duration-200">My Tickets</a>
+            @endif
+        </div>
+
+        <!-- Right Side: User Profile and Sign Out -->
         <div class="hidden md:flex items-center gap-6" id="nav-actions-desktop">
             <div class="flex items-center gap-3">
                 <div class="w-8 h-8 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center font-semibold text-sm text-slate-700">
                     {{ strtoupper(substr($user->name, 0, 1)) }}
                 </div>
                 <span class="font-medium text-sm text-slate-700">{{ $user->name }}</span>
-                <span class="bg-slate-100 text-slate-600 text-xs px-2 py-0.5 rounded-sm font-semibold uppercase tracking-wider border border-slate-200/50">{{ $user->role }}</span>
+                <span class="{{ $user->role === 'admin' ? 'bg-slate-100 text-slate-800 border-slate-200/50' : 'bg-emerald-50 text-emerald-700 border-emerald-200/40' }} text-xs px-2.5 py-0.5 rounded-full border font-semibold uppercase tracking-wider">{{ $user->role }}</span>
             </div>
-            <a href="/admin/users" class="text-slate-600 hover:text-slate-900 text-sm font-medium transition">Users</a>
-            <a href="/admin/tickets" class="text-slate-600 hover:text-slate-900 text-sm font-medium transition">Tickets</a>
             <form method="POST" action="/logout" class="m-0">
                 @csrf
                 <button type="submit" class="bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 font-medium rounded-lg py-1.5 px-4 text-xs transition cursor-pointer">Sign Out</button>
@@ -36,7 +49,7 @@
         </div>
 
         <!-- Mobile Menu Hamburger Button -->
-        <button id="mobile-menu-btn" class="block md:hidden text-slate-500 hover:text-slate-800 focus:outline-none cursor-pointer">
+        <button id="mobile-menu-btn" class="block md:hidden p-2 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-50 focus:outline-none cursor-pointer transition">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
             </svg>
@@ -44,41 +57,54 @@
     </nav>
 
     <!-- Mobile Sidebar Backdrop Overlay -->
-    <div id="mobile-sidebar-backdrop" class="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 transition-opacity duration-300 opacity-0 pointer-events-none"></div>
+    <div id="mobile-sidebar-backdrop" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 transition-opacity duration-300 opacity-0 pointer-events-none"></div>
 
     <!-- Mobile Sidebar Drawer -->
-    <div id="mobile-sidebar" class="fixed top-0 left-0 bottom-0 w-72 bg-white border-r border-slate-200 z-50 transform -translate-x-full transition-transform duration-300 ease-in-out p-6 flex flex-col gap-8">
-        <div class="flex justify-between items-center">
-            <span class="text-lg font-bold tracking-wider text-slate-900">MENU</span>
-            <button id="mobile-sidebar-close" class="text-slate-500 hover:text-slate-800 cursor-pointer focus:outline-none">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <div id="mobile-sidebar" class="fixed top-0 left-0 bottom-0 w-72 bg-white border-r border-slate-200 z-50 transform -translate-x-full transition-transform duration-300 ease-in-out p-6 flex flex-col gap-8 shadow-2xl">
+        <div class="flex justify-between items-center pb-2 border-b border-slate-100">
+            <div class="flex items-center gap-1.5">
+                <span class="font-extrabold text-base text-slate-950 tracking-tight">TICKET</span>
+                <span class="font-light text-base text-slate-400">SYSTEM</span>
+            </div>
+            <button id="mobile-sidebar-close" class="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-50 cursor-pointer focus:outline-none transition">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                 </svg>
             </button>
         </div>
         <div class="flex-1 flex flex-col justify-between" id="nav-actions-mobile">
             <div class="flex flex-col gap-6">
+                <!-- User Info -->
                 <div class="flex items-center gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200/60">
-                    <div class="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center font-semibold text-slate-700">
+                    <div class="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center font-bold text-slate-700">
                         {{ strtoupper(substr($user->name, 0, 1)) }}
                     </div>
-                    <div class="flex flex-col">
-                        <span class="font-semibold text-sm text-slate-800">{{ $user->name }}</span>
-                        <span class="text-xs text-slate-500 mt-0.5">{{ $user->email }}</span>
+                    <div class="flex flex-col min-w-0">
+                        <span class="font-semibold text-sm text-slate-800 truncate">{{ $user->name }}</span>
+                        <span class="text-xs text-slate-500 truncate mt-0.5">{{ $user->email }}</span>
                     </div>
                 </div>
-                <div class="flex flex-col gap-2 pl-1">
-                    <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Role</span>
-                    <div>
-                        <span class="bg-slate-100 text-slate-600 text-xs px-2.5 py-1 rounded-sm font-semibold uppercase tracking-wider border border-slate-200/50">{{ $user->role }}</span>
-                    </div>
+                
+                <!-- Navigation -->
+                <div class="flex flex-col gap-1.5">
+                    <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider px-3 mb-2">Navigation</span>
+                    @if($user->role === 'admin')
+                        <a href="/admin" class="{{ Request::is('admin') ? 'bg-slate-900 text-white font-semibold shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50 font-medium' }} text-sm py-2.5 px-3 rounded-lg transition">Dashboard</a>
+                        <a href="/admin/users" class="{{ Request::is('admin/users*') ? 'bg-slate-900 text-white font-semibold shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50 font-medium' }} text-sm py-2.5 px-3 rounded-lg transition">Manage Users</a>
+                        <a href="/admin/tickets" class="{{ Request::is('admin/tickets*') ? 'bg-slate-900 text-white font-semibold shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50 font-medium' }} text-sm py-2.5 px-3 rounded-lg transition">Tickets</a>
+                    @else
+                        <a href="/agent" class="bg-slate-900 text-white font-semibold shadow-xs text-sm py-2.5 px-3 rounded-lg transition">My Tickets</a>
+                    @endif
                 </div>
-                <a href="/admin/users" class="bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 font-medium rounded-lg py-3 px-4 text-sm transition text-center">Manage Users</a>
-                <a href="/admin/tickets" class="bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 font-medium rounded-lg py-3 px-4 text-sm transition text-center">All Tickets</a>
             </div>
-            <form method="POST" action="/logout" class="m-0">
+            
+            <!-- Sign out -->
+            <form method="POST" action="/logout" class="m-0 border-t border-slate-100 pt-4">
                 @csrf
-                <button type="submit" class="w-full bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 font-medium rounded-lg py-3 px-4 text-sm transition cursor-pointer mt-auto">Sign Out</button>
+                <button type="submit" class="w-full bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 font-medium rounded-lg py-2.5 px-4 text-sm transition cursor-pointer flex items-center justify-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+                    Sign Out
+                </button>
             </form>
         </div>
     </div>
