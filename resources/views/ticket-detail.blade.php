@@ -235,7 +235,7 @@
                                             <div class="flex items-center justify-between gap-2 flex-wrap mb-2">
                                                 <div class="flex items-center gap-1.5">
                                                     <span class="text-sm font-bold text-slate-900">{{ $reply->user->name }}</span>
-                                                    <span class="text-[9px] px-1.5 py-0.5 rounded-full font-extrabold uppercase tracking-wide {{ $reply->user->role === 'admin' ? 'bg-rose-50 text-rose-600 border border-rose-100' : 'bg-blue-50 text-blue-600 border border-blue-100' }}">
+                                                    <span class="text-[9px] px-1.5 py-0.5 rounded-full font-extrabold uppercase tracking-wide {{ $reply->user->role === 'admin' ? 'bg-rose-50 text-rose-600 border border-rose-100' : ($reply->user->role === 'customer' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-blue-50 text-blue-600 border border-blue-100') }}">
                                                         {{ $reply->user->role }}
                                                     </span>
                                                 </div>
@@ -382,12 +382,32 @@
                             <span class="text-xs font-bold text-slate-400 uppercase tracking-wider block">Ticket Metadata</span>
                             <div class="space-y-3 bg-slate-50/50 p-4 rounded-xl border border-slate-200/60 text-xs">
                                 <div class="flex justify-between items-center">
+                                    <span class="text-slate-500">Ticket ID</span>
+                                    <span class="text-slate-800 font-semibold">{{ $ticket->ticket_number }} (ID: {{ $ticket->id }})</span>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-slate-500">Sender Email</span>
+                                    <span class="text-slate-800 font-semibold truncate max-w-[150px]" title="{{ $ticket->sender_email }}">{{ $ticket->sender_email }}</span>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-slate-500">Subject</span>
+                                    <span class="text-slate-800 font-semibold truncate max-w-[150px]" title="{{ $ticket->subject }}">{{ $ticket->subject }}</span>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-slate-500">Source</span>
+                                    <span class="text-slate-800 font-semibold capitalize bg-slate-100 px-2 py-0.5 rounded border border-slate-200/60">{{ $ticket->source ?? 'web' }}</span>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-slate-500">Status</span>
+                                    <span class="text-slate-800 font-semibold capitalize">{{ str_replace('_', ' ', $ticket->status) }}</span>
+                                </div>
+                                <div class="flex justify-between items-center">
                                     <span class="text-slate-500">Created At</span>
                                     <span class="text-slate-800 font-semibold">{{ $ticket->created_at->format('M d, Y · H:i') }}</span>
                                 </div>
                                 <div class="flex justify-between items-center">
-                                    <span class="text-slate-500">Last Updated</span>
-                                    <span class="text-slate-800 font-semibold">{{ $ticket->updated_at->diffForHumans() }}</span>
+                                    <span class="text-slate-500">Last Reply At</span>
+                                    <span class="text-slate-800 font-semibold">{{ $ticket->last_reply_at }}</span>
                                 </div>
                                 <div class="flex justify-between items-center pt-2.5 border-t border-slate-200/60" id="assigned-agent-row">
                                     <span class="text-slate-500">Current Agent</span>

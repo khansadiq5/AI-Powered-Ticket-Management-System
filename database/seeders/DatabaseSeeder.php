@@ -32,5 +32,15 @@ class DatabaseSeeder extends Seeder
                 'role' => 'agent',
             ]
         );
+
+        // Seed AI Agent
+        User::updateOrCreate(
+            ['email' => 'ai.assistant@helpdesk.com'],
+            [
+                'name' => 'AI',
+                'password' => Hash::make('ai-assistant-secret-password-123'),
+                'role' => 'agent',
+            ]
+        );
     }
 }

@@ -26,6 +26,7 @@ class TicketReply extends Model
         'ticket_id',
         'user_id',
         'body',
+        'message_type',
     ];
 
     /**

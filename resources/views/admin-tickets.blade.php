@@ -180,13 +180,21 @@
     <main class="flex-1 py-10 px-4 md:px-8 max-w-7xl mx-auto w-full">
 
         <!-- Page Header -->
-        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8 gap-4">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-4">
             <div>
                 <h1 class="text-2xl font-bold text-slate-900">All Support Tickets</h1>
                 <p class="text-sm text-slate-500 mt-1">Review and manage support tickets received by the system.</p>
             </div>
             <div class="text-sm text-slate-400 font-medium self-start bg-slate-100 px-3 py-1 rounded-md border border-slate-200/50">
                 {{ $tickets->total() }} ticket{{ $tickets->total() !== 1 ? 's' : '' }} total
+            </div>
+        </div>
+
+        <!-- Support Email Help Banner -->
+        <div class="mb-6 bg-slate-50/50 border border-slate-200/80 rounded-xl p-4 flex items-start gap-3 text-sm text-slate-600 shadow-3xs">
+            <span class="text-lg flex-shrink-0 mt-0.5">ℹ️</span>
+            <div>
+                Customers can create tickets by sending an email to <a href="mailto:{{ env('SUPPORT_EMAIL', 'support@helpdesk.com') }}" class="font-semibold text-slate-950 underline decoration-slate-300 hover:decoration-slate-800 transition">{{ env('SUPPORT_EMAIL', 'support@helpdesk.com') }}</a>. Any replies from either side will automatically sync with the same ticket conversation.
             </div>
         </div>
 

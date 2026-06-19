@@ -24,8 +24,14 @@ class ClassifyTicketJob implements ShouldQueue
     /**
      * Execute the job.
      */
-    public function handle(TicketClassifierService $classifier): void
+    public function handle(TicketClassifierService $classifier, \App\Services\TicketAutoResolverService $autoResolver): void
     {
+        $this->ticket->update(['status' => 'processing']);
+
         $classifier->classify($this->ticket);
+        
+        $this->ticket->refresh();
+        
+        $autoResolver->resolve($this->ticket);
     }
 }

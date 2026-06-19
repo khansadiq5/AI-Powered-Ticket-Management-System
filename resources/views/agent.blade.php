@@ -144,9 +144,17 @@
     <main class="flex-1 py-10 px-4 md:px-8 max-w-7xl mx-auto w-full">
 
         <!-- Page Header -->
-        <div class="mb-8">
+        <div class="mb-4">
             <h1 class="text-2xl font-bold text-slate-900">My Assigned Tickets</h1>
             <p class="text-sm text-slate-500 mt-1">Review and resolve your active support responsibilities.</p>
+        </div>
+
+        <!-- Support Email Help Banner -->
+        <div class="mb-6 bg-slate-50/50 border border-slate-200/80 rounded-xl p-4 flex items-start gap-3 text-sm text-slate-600 shadow-3xs">
+            <span class="text-lg flex-shrink-0 mt-0.5">ℹ️</span>
+            <div>
+                Customers can create tickets by sending an email to <a href="mailto:{{ env('SUPPORT_EMAIL', 'support@helpdesk.com') }}" class="font-semibold text-slate-950 underline decoration-slate-300 hover:decoration-slate-800 transition">{{ env('SUPPORT_EMAIL', 'support@helpdesk.com') }}</a>. Any replies from either side will automatically sync with the same ticket conversation.
+            </div>
         </div>
 
         <!-- Flash Message -->

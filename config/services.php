@@ -48,4 +48,9 @@ return [
         'folder' => env('IMAP_FOLDER', 'INBOX'),
     ],
 
+    'postmark' => [
+        'inbound_address' => env('POSTMARK_INBOUND_ADDRESS'),
+        'webhook_token' => env('POSTMARK_WEBHOOK_TOKEN'),
+    ],
+
 ];

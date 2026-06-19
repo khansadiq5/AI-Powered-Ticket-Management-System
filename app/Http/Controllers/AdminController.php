@@ -19,16 +19,52 @@ class AdminController extends Controller
         $user = Auth::user();
 
         $ticketStats = [
-            'total' => Ticket::count(),
+            'total' => Ticket::whereNotIn('status', ['new', 'processing'])->count(),
             'open' => Ticket::where('status', 'open')->count(),
             'in_progress' => Ticket::where('status', 'in_progress')->count(),
             'resolved' => Ticket::where('status', 'resolved')->count(),
-            'unassigned' => Ticket::unassigned()->count(),
+            'unassigned' => Ticket::unassigned()->whereNotIn('status', ['new', 'processing'])->count(),
         ];
+
+        // AI Performance Analytics
+        $resolvedByAiCount = Ticket::where('status', 'resolved')
+            ->whereHas('replies', function($query) {
+                $query->whereHas('user', function($q) {
+                    $q->where('email', 'ai.assistant@helpdesk.com');
+                });
+            })->count();
+
+        $totalResolved = Ticket::where('status', 'resolved')->count();
+        $percentageSolvedByAi = $totalResolved > 0 ? round(($resolvedByAiCount / $totalResolved) * 100, 1) : 0;
+
+        // Average Resolution Time
+        $resolvedTickets = Ticket::where('status', 'resolved')->get(['created_at', 'updated_at']);
+        $totalSeconds = 0;
+        $resolvedCount = $resolvedTickets->count();
+        foreach ($resolvedTickets as $t) {
+            $totalSeconds += $t->updated_at->diffInSeconds($t->created_at);
+        }
+        $averageResolutionSeconds = $resolvedCount > 0 ? $totalSeconds / $resolvedCount : 0;
+
+        if ($averageResolutionSeconds == 0) {
+            $averageResolutionTimeFormatted = 'N/A';
+        } else {
+            $minutes = round($averageResolutionSeconds / 60);
+            if ($minutes < 60) {
+                $averageResolutionTimeFormatted = "{$minutes} mins";
+            } else {
+                $hours = floor($minutes / 60);
+                $remainingMinutes = $minutes % 60;
+                $averageResolutionTimeFormatted = "{$hours}h {$remainingMinutes}m";
+            }
+        }
 
         return view('admin', [
             'user' => $user,
             'ticketStats' => $ticketStats,
+            'resolvedByAiCount' => $resolvedByAiCount,
+            'percentageSolvedByAi' => $percentageSolvedByAi,
+            'averageResolutionTime' => $averageResolutionTimeFormatted,
         ]);
     }
 
@@ -114,7 +150,7 @@ class AdminController extends Controller
      */
     public function tickets(Request $request)
     {
-        $query = Ticket::with('assignedAgent');
+        $query = Ticket::with('assignedAgent')->whereNotIn('status', ['new', 'processing']);
 
         // Apply filters
         if ($request->filled('status')) {

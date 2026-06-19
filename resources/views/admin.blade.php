@@ -146,6 +146,42 @@
             </div>
         </div>
 
+        <!-- AI & Performance Analytics Dashboard -->
+        <div class="mb-10">
+            <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">AI & SLA Performance Analytics</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- AI Resolved Count -->
+                <div class="bg-white border border-slate-200 rounded-xl p-6 shadow-xs flex items-center gap-4 relative overflow-hidden">
+                    <div class="absolute right-0 top-0 translate-x-4 -translate-y-4 w-24 h-24 bg-indigo-50 rounded-full blur-xl"></div>
+                    <div class="w-12 h-12 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-2xl relative z-10">🤖</div>
+                    <div class="relative z-10">
+                        <div class="text-2xl font-bold text-indigo-950">{{ $resolvedByAiCount }}</div>
+                        <div class="text-xs text-slate-500 mt-0.5 font-semibold uppercase tracking-wider">Resolved by AI</div>
+                    </div>
+                </div>
+
+                <!-- % Resolved by AI -->
+                <div class="bg-white border border-slate-200 rounded-xl p-6 shadow-xs flex items-center gap-4 relative overflow-hidden">
+                    <div class="absolute right-0 top-0 translate-x-4 -translate-y-4 w-24 h-24 bg-emerald-50 rounded-full blur-xl"></div>
+                    <div class="w-12 h-12 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-2xl relative z-10">⚡</div>
+                    <div class="relative z-10">
+                        <div class="text-2xl font-bold text-emerald-950">{{ $percentageSolvedByAi }}%</div>
+                        <div class="text-xs text-slate-500 mt-0.5 font-semibold uppercase tracking-wider">AI Success Rate</div>
+                    </div>
+                </div>
+
+                <!-- Average SLA Resolution Time -->
+                <div class="bg-white border border-slate-200 rounded-xl p-6 shadow-xs flex items-center gap-4 relative overflow-hidden">
+                    <div class="absolute right-0 top-0 translate-x-4 -translate-y-4 w-24 h-24 bg-amber-50 rounded-full blur-xl"></div>
+                    <div class="w-12 h-12 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center text-2xl relative z-10">⏱️</div>
+                    <div class="relative z-10">
+                        <div class="text-2xl font-bold text-amber-950">{{ $averageResolutionTime }}</div>
+                        <div class="text-xs text-slate-500 mt-0.5 font-semibold uppercase tracking-wider">Avg Resolution Time</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Admin Control Cards -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
             <a href="/admin/users" class="bg-white border border-slate-200 rounded-xl p-6 text-left flex flex-col gap-3 shadow-xs hover:border-slate-300 transition group">

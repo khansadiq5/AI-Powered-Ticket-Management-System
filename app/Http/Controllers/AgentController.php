@@ -18,6 +18,7 @@ class AgentController extends Controller
         $user = Auth::user();
 
         $tickets = Ticket::assignedTo($user->id)
+            ->whereNotIn('status', ['new', 'processing'])
             ->orderByRaw("CASE priority 
                 WHEN 'urgent' THEN 1 
                 WHEN 'high' THEN 2 
@@ -131,6 +132,8 @@ class AgentController extends Controller
             'user_id' => $user->id,
             'body' => $validated['body'],
         ]);
+
+        $ticket->sendReplyEmail($reply);
 
         if ($request->expectsJson() || $request->ajax()) {
             return response()->json([

@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\EmailLog;
 use App\Models\Ticket;
+use App\Models\TicketReply;
 use App\Models\User;
 use App\Services\TicketClassifierService;
 use Illuminate\Console\Command;
@@ -44,7 +45,7 @@ class FetchEmailsCommand extends Command
         $this->info('Connecting to IMAP server: ' . $config['host'] . ':' . $config['port']);
 
         try {
-            $cm = new ClientManager();
+            $cm = app(ClientManager::class);
             $client = $cm->make([
                 'host' => $config['host'],
                 'port' => $config['port'],
@@ -104,15 +105,24 @@ class FetchEmailsCommand extends Command
 
         foreach ($messages as $message) {
             try {
-                $messageId = $message->getMessageId()?->toString() ?? $message->getMessageId();
+                $messageId = $message->getMessageId();
+                if (is_object($messageId) && method_exists($messageId, 'toString')) {
+                    $messageId = $messageId->toString();
+                } else {
+                    $messageId = (string) $messageId;
+                }
+
                 $fromAddress = $message->getFrom()[0]->mail ?? 'unknown@unknown.com';
                 $fromName = $message->getFrom()[0]->personal ?? null;
-                $subject = $message->getSubject()?->toString() ?? $message->getSubject() ?? '(No Subject)';
-                $bodyText = $message->getTextBody() ?? strip_tags($message->getHTMLBody() ?? '');
 
-                // Clean up the message ID
-                $messageId = is_object($messageId) ? (string) $messageId : $messageId;
-                $subject = is_object($subject) ? (string) $subject : $subject;
+                $subject = $message->getSubject() ?? '(No Subject)';
+                if (is_object($subject) && method_exists($subject, 'toString')) {
+                    $subject = $subject->toString();
+                } else {
+                    $subject = (string) $subject;
+                }
+
+                $bodyText = $message->getTextBody() ?? strip_tags($message->getHTMLBody() ?? '');
 
                 // Check for duplicates
                 if ($messageId && EmailLog::where('message_id', $messageId)->exists()) {
@@ -127,22 +137,182 @@ class FetchEmailsCommand extends Command
                     continue;
                 }
 
-                // Create the ticket
+                // --- Threading / Reply Detection ---
+                $inReplyTo = null;
+                try {
+                    $inReplyTo = $message->get('in_reply_to');
+                } catch (\Throwable $e) {}
+
+                if (empty($inReplyTo)) {
+                    try {
+                        $inReplyTo = $message->getHeaders()?->get('in-reply-to');
+                    } catch (\Throwable $e) {}
+                }
+
+                if (empty($inReplyTo)) {
+                    try {
+                        $inReplyTo = $message->getHeaders()?->get('in_reply_to');
+                    } catch (\Throwable $e) {}
+                }
+
+                if (empty($inReplyTo)) {
+                    try {
+                        $inReplyTo = $message->getInReplyTo();
+                    } catch (\Throwable $e) {}
+                }
+
+                $references = [];
+                $refVal = null;
+                try {
+                    $refVal = $message->get('references');
+                } catch (\Throwable $e) {}
+
+                if (empty($refVal)) {
+                    try {
+                        $refVal = $message->getHeaders()?->get('references');
+                    } catch (\Throwable $e) {}
+                }
+
+                if (empty($refVal)) {
+                    try {
+                        $refVal = $message->getReferences();
+                    } catch (\Throwable $e) {}
+                }
+
+                if (!empty($refVal)) {
+                    if (is_array($refVal)) {
+                        $references = $refVal;
+                    } elseif (is_object($refVal)) {
+                        if (method_exists($refVal, 'toString')) {
+                            $references = preg_split('/\s+/', $refVal->toString());
+                        } elseif (method_exists($refVal, 'toArray')) {
+                            $references = $refVal->toArray();
+                        } else {
+                            $references = preg_split('/\s+/', (string)$refVal);
+                        }
+                    } else {
+                        $references = preg_split('/\s+/', (string)$refVal);
+                    }
+                }
+
+                $cleanId = function($id) {
+                    if (empty($id)) return '';
+                    if (is_object($id)) {
+                        if (method_exists($id, 'toString')) {
+                            $id = $id->toString();
+                        } else {
+                            $id = (string)$id;
+                        }
+                    }
+                    return trim($id, " \t\n\r\0\x0B<>");
+                };
+
+                $targetIds = [];
+                if (!empty($inReplyTo)) {
+                    $targetIds[] = $cleanId($inReplyTo);
+                }
+                foreach ($references as $ref) {
+                    $cid = $cleanId($ref);
+                    if (!empty($cid)) {
+                        $targetIds[] = $cid;
+                    }
+                }
+                $targetIds = array_unique(array_filter($targetIds));
+
+                $matchedTicket = null;
+                // 1. Check for references/in-reply-to message ID in tickets
+                if (!empty($targetIds)) {
+                    $matchedTicket = Ticket::whereIn('message_id', $targetIds)
+                        ->orWhere(function ($query) use ($targetIds) {
+                            foreach ($targetIds as $id) {
+                                $query->orWhere('message_id', 'like', "%{$id}%");
+                            }
+                        })
+                        ->first();
+                }
+
+                // 2. Check for references/in-reply-to message ID in email_logs
+                if (!$matchedTicket && !empty($targetIds)) {
+                    $log = EmailLog::whereIn('message_id', $targetIds)
+                        ->whereNotNull('ticket_id')
+                        ->first();
+                    if ($log) {
+                        $matchedTicket = Ticket::find($log->ticket_id);
+                    }
+                }
+
+                // 3. Check for ticket number (e.g. TKT-xxxxx) in the subject
+                if (!$matchedTicket && !empty($subject)) {
+                    if (preg_match('/TKT-\d{5}/i', $subject, $matches)) {
+                        $ticketNumber = strtoupper($matches[0]);
+                        $matchedTicket = Ticket::where('ticket_number', $ticketNumber)->first();
+                    }
+                }
+
+                if ($matchedTicket) {
+                    // Find or create customer User
+                    $customerUser = User::where('email', $fromAddress)->first();
+                    if (!$customerUser) {
+                        $customerUser = User::create([
+                            'name' => $fromName ?? explode('@', $fromAddress)[0],
+                            'email' => $fromAddress,
+                            'password' => \Illuminate\Support\Facades\Hash::make(\Illuminate\Support\Str::random(32)),
+                            'role' => 'customer',
+                        ]);
+                    }
+
+                    // Save email body as a TicketReply
+                    TicketReply::create([
+                        'ticket_id' => $matchedTicket->id,
+                        'user_id' => $customerUser->id,
+                        'body' => $bodyText ?: '(Empty body)',
+                    ]);
+
+                    // Reopen the ticket / keep it open
+                    $matchedTicket->update(['status' => 'open']);
+
+                    // Log in EmailLog
+                    EmailLog::create([
+                        'message_id' => $messageId ?? 'no-id-' . now()->timestamp,
+                        'from' => $fromAddress,
+                        'subject' => $subject,
+                        'status' => 'processed',
+                        'ticket_id' => $matchedTicket->id,
+                    ]);
+
+                    // Mark as read
+                    $message->setFlag('Seen');
+
+                    $created++;
+                    $bar->advance();
+                    continue;
+                }
+
+                // Find or create the AI Agent
+                $aiAgent = User::firstOrCreate(
+                    ['email' => 'ai.assistant@helpdesk.com'],
+                    [
+                        'name' => 'AI',
+                        'password' => \Illuminate\Support\Facades\Hash::make(\Illuminate\Support\Str::random(32)),
+                        'role' => 'agent',
+                    ]
+                );
+
+                // Create the ticket assigned to AI agent
                 $ticket = Ticket::create([
                     'subject' => $subject,
                     'body' => $bodyText ?: '(Empty body)',
                     'sender_name' => $fromName,
                     'sender_email' => $fromAddress,
-                    'status' => 'open',
+                    'status' => 'new',
                     'priority' => 'medium',
                     'message_id' => $messageId,
+                    'assigned_to' => $aiAgent->id,
+                    'source' => 'email',
                 ]);
 
                 // AI Classification (Queued via Redis)
                 \App\Jobs\ClassifyTicketJob::dispatch($ticket);
-
-                // Round-robin agent assignment
-                $this->assignToAgent($ticket);
 
                 // Log success
                 EmailLog::create([
