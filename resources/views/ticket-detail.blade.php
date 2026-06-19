@@ -253,7 +253,11 @@
                             <textarea name="body" id="reply-body" rows="4" required placeholder="Type your response here..." 
                                       class="w-full bg-slate-50/50 border border-slate-200 rounded-xl text-sm text-slate-900 p-4 focus:outline-none focus:ring-2 focus:ring-slate-950/10 focus:border-slate-800 placeholder:text-slate-400 resize-none transition duration-200"></textarea>
                         </div>
-                        <div class="flex justify-end">
+                        <div class="flex justify-between items-center">
+                            <button type="button" id="polish-btn" disabled
+                                    class="border border-slate-200 text-slate-400 bg-slate-50 font-semibold rounded-xl py-3 px-6 text-sm transition cursor-not-allowed shadow-3xs opacity-60 flex items-center gap-2">
+                                <span>✨</span> Polish Reply
+                            </button>
                             <button type="submit" 
                                     class="bg-slate-900 hover:bg-slate-800 text-white font-semibold rounded-xl py-3 px-6 text-sm transition cursor-pointer shadow-xs hover:shadow-md active:scale-98 transition duration-200">
                                 Send Response
@@ -600,8 +604,74 @@
                         const replyBody = document.getElementById('reply-body');
                         if (replyBody) {
                             replyBody.value = '';
+                            updatePolishBtnState();
                         }
                     });
+                });
+            }
+
+            // Polish Reply Functionality
+            const polishBtn = document.getElementById('polish-btn');
+            const replyBodyInput = document.getElementById('reply-body');
+
+            function updatePolishBtnState() {
+                if (!polishBtn || !replyBodyInput) return;
+                const hasText = replyBodyInput.value.trim().length > 0;
+                if (hasText) {
+                    polishBtn.disabled = false;
+                    polishBtn.className = "border border-indigo-200 text-indigo-700 bg-indigo-50/50 hover:bg-indigo-100 font-semibold rounded-xl py-3 px-6 text-sm transition cursor-pointer shadow-3xs hover:shadow-2xs active:scale-98 transition duration-200 flex items-center gap-2";
+                } else {
+                    polishBtn.disabled = true;
+                    polishBtn.className = "border border-slate-200 text-slate-400 bg-slate-50 font-semibold rounded-xl py-3 px-6 text-sm transition cursor-not-allowed shadow-3xs opacity-60 flex items-center gap-2";
+                }
+            }
+            
+            if (polishBtn && replyBodyInput) {
+                replyBodyInput.addEventListener('input', updatePolishBtnState);
+                updatePolishBtnState();
+
+                polishBtn.addEventListener('click', async () => {
+                    const text = replyBodyInput.value.trim();
+                    if (!text) {
+                        showToast('Please type a draft response first before polishing.', 'error');
+                        return;
+                    }
+                    
+                    const originalBtnText = polishBtn.innerHTML;
+                    polishBtn.disabled = true;
+                    polishBtn.innerHTML = `
+                        <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-indigo-700 inline-block" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg> Polishing...`;
+                    
+                    try {
+                        const csrfToken = document.querySelector('#reply-form input[name="_token"]').value;
+                        const response = await fetch(`/agent/tickets/{{ $ticket->id }}/polish-reply`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json',
+                                'X-CSRF-TOKEN': csrfToken
+                            },
+                            body: JSON.stringify({ body: text })
+                        });
+                        
+                        const data = await response.json();
+                        if (response.ok && data.success) {
+                            replyBodyInput.value = data.polished;
+                            showToast('Reply polished successfully!');
+                        } else {
+                            showToast(data.message || 'An error occurred while polishing.', 'error');
+                        }
+                    } catch (error) {
+                        console.error(error);
+                        showToast('Network error. Please check your connection.', 'error');
+                    } finally {
+                        polishBtn.disabled = false;
+                        polishBtn.innerHTML = originalBtnText;
+                        updatePolishBtnState();
+                    }
                 });
             }
 

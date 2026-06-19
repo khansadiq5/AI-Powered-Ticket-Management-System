@@ -235,4 +235,62 @@ class TicketSystemE2ETest extends TestCase
         $this->post('/logout');
         $this->assertGuest();
     }
+
+    /**
+     * Test the reply polishing endpoint using Gemini API.
+     */
+    public function test_polish_reply(): void
+    {
+        $agent = User::create([
+            'name' => 'Support Agent 1',
+            'email' => 'agent1@helpdesk.com',
+            'password' => bcrypt('agent-password'),
+            'role' => 'agent',
+        ]);
+
+        $ticket = Ticket::create([
+            'subject' => 'Billing inquiry',
+            'body' => 'I would like a refund please.',
+            'sender_name' => 'Jane Customer',
+            'sender_email' => 'jane@customer.com',
+            'status' => 'open',
+            'priority' => 'medium',
+            'assigned_to' => $agent->id,
+        ]);
+
+        // Fake the Gemini API call
+        config(['services.gemini.api_key' => 'fake-api-key']);
+        Http::fake([
+            'generativelanguage.googleapis.com/*' => Http::response([
+                'candidates' => [
+                    [
+                        'content' => [
+                            'parts' => [
+                                [
+                                    'text' => 'Dear Jane, we have received your request and will process your refund shortly.'
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
+            ], 200)
+        ]);
+
+        // Request without authentication should redirect/fail
+        $response = $this->postJson("/agent/tickets/{$ticket->id}/polish-reply", [
+            'body' => 'Sure, I will refund you.',
+        ]);
+        $response->assertStatus(401);
+
+        // Authenticate agent
+        $response = $this->actingAs($agent)->postJson("/agent/tickets/{$ticket->id}/polish-reply", [
+            'body' => 'Sure, I will refund you.',
+        ]);
+
+        $response->assertStatus(200);
+        $response->assertJson([
+            'success' => true,
+            'polished' => 'Dear Jane, we have received your request and will process your refund shortly.',
+        ]);
+    }
 }

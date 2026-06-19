@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Ticket;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class AgentController extends Controller
 {
@@ -148,5 +150,125 @@ class AgentController extends Controller
         }
 
         return back()->with('success', 'Reply posted successfully.');
+    }
+
+    /**
+     * Polish a draft reply using the Gemini API.
+     */
+    public function polishReply(Request $request, Ticket $ticket)
+    {
+        $user = Auth::user();
+
+        if ($ticket->assigned_to !== $user->id && $user->role !== 'admin') {
+            abort(403, 'You are not authorized to perform this action.');
+        }
+
+        $validated = $request->validate([
+            'body' => ['required', 'string', 'min:1'],
+        ]);
+
+        $apiKey = config('services.gemini.api_key');
+        if (empty($apiKey)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gemini API key is not configured.',
+            ], 500);
+        }
+
+        $draft = $validated['body'];
+        $subject = $ticket->subject;
+        $ticketBody = $ticket->body;
+
+        $prompt = "You are a professional customer support representative. An agent has written a draft reply to a support ticket.
+Your task is to polish, improve, and refine this draft reply into a professional, clear, polite support response.
+
+Guidelines:
+1. Keep the response concise, restricting it strictly to exactly 2 to 3 lines/sentences.
+2. Include a standard polite greeting (e.g., 'Hello,') and closing (e.g., 'Please let us know if you face any issues.').
+3. Keep the core meaning, intent, and specific details from the agent's draft, adapting it to reference the customer's issue.
+4. Output ONLY the polished response text. Do not include any introduction, explanations, markdown code blocks, or notes.
+
+Customer's Ticket Subject: {$subject}
+Customer's Ticket Body:
+{$ticketBody}
+
+Agent's Draft Reply to Polish:
+{$draft}
+
+Polished response (2-3 lines):";
+
+        try {
+            $response = Http::retry(5, 2000)->timeout(30)->post(
+                "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={$apiKey}",
+                [
+                    'contents' => [
+                        [
+                            'parts' => [
+                                ['text' => $prompt],
+                            ],
+                        ],
+                    ],
+                ]
+            );
+
+            if ($response->successful()) {
+                $text = $response->json('candidates.0.content.parts.0.text', '');
+                $polished = trim($text);
+                
+                if (str_starts_with($polished, '```')) {
+                    $polished = preg_replace('/^```[a-zA-Z]*\s*/', '', $polished);
+                    $polished = preg_replace('/\s*```$/', '', $polished);
+                    $polished = trim($polished);
+                }
+
+                return response()->json([
+                    'success' => true,
+                    'polished' => $polished,
+                ]);
+            } else {
+                Log::error("PolishReply: Gemini API returned {$response->status()}", [
+                    'body' => $response->body(),
+                ]);
+
+                $errorMessage = 'Failed to connect to Gemini API.';
+                if ($response->status() === 503) {
+                    $errorMessage = 'Gemini API is temporarily overloaded (High Demand). Please try again in a few seconds.';
+                } elseif ($response->status() === 429) {
+                    $errorMessage = 'Gemini API rate limit exceeded. Please wait a moment before trying again.';
+                }
+
+                return response()->json([
+                    'success' => false,
+                    'message' => $errorMessage,
+                ], $response->status());
+            }
+        } catch (\Illuminate\Http\Client\RequestException $e) {
+            $status = $e->response ? $e->response->status() : 500;
+            $body = $e->response ? $e->response->body() : $e->getMessage();
+
+            Log::error("PolishReply: RequestException during polishing (Status {$status})", [
+                'body' => $body,
+            ]);
+
+            $errorMessage = 'Failed to connect to Gemini API.';
+            if ($status === 503) {
+                $errorMessage = 'Gemini API is temporarily overloaded (High Demand). Please try again in a few seconds.';
+            } elseif ($status === 429) {
+                $errorMessage = 'Gemini API rate limit exceeded. Please wait a moment before trying again.';
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => $errorMessage,
+            ], $status);
+        } catch (\Exception $e) {
+            Log::error("PolishReply: Exception during polishing", [
+                'message' => $e->getMessage(),
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'An error occurred while polishing the reply.',
+            ], 500);
+        }
     }
 }
