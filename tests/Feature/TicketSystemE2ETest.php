@@ -353,4 +353,25 @@ class TicketSystemE2ETest extends TestCase
             $ticket->fresh()->ai_summary
         );
     }
+
+    /**
+     * Test the ticket classification job is queued.
+     */
+    public function test_classify_ticket_job_is_queued(): void
+    {
+        \Illuminate\Support\Facades\Queue::fake();
+
+        $ticket = Ticket::create([
+            'subject' => 'Help with login',
+            'body' => 'I cannot sign in to my account. Please reset my password.',
+            'sender_name' => 'Support User',
+            'sender_email' => 'user@example.com',
+            'status' => 'open',
+            'priority' => 'medium',
+        ]);
+
+        \App\Jobs\ClassifyTicketJob::dispatch($ticket);
+
+        \Illuminate\Support\Facades\Queue::assertPushed(\App\Jobs\ClassifyTicketJob::class);
+    }
 }

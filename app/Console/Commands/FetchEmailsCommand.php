@@ -138,8 +138,8 @@ class FetchEmailsCommand extends Command
                     'message_id' => $messageId,
                 ]);
 
-                // AI Classification
-                $classifier->classify($ticket);
+                // AI Classification (Queued via Redis)
+                \App\Jobs\ClassifyTicketJob::dispatch($ticket);
 
                 // Round-robin agent assignment
                 $this->assignToAgent($ticket);
