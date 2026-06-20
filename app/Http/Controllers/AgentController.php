@@ -398,8 +398,8 @@ Polished response (2-3 lines):";
 
         $conversation = "Customer ({$sender}): {$ticketBody}\n";
         foreach ($replies as $reply) {
-            $roleName = $reply->user ? ucfirst($reply->user->role) : 'Guest';
-            $userName = $reply->user ? $reply->user->name : 'Guest';
+            $roleName = $reply->user ? ucfirst($reply->user->role) : ($reply->message_type === 'incoming' ? 'Customer' : 'Guest');
+            $userName = $reply->user ? $reply->user->name : ($reply->message_type === 'incoming' ? $sender : 'Guest');
             $conversation .= "{$roleName} ({$userName}): {$reply->body}\n";
         }
 
