@@ -36,16 +36,21 @@ class ProcessInboundEmailJob implements ShouldQueue
         $fromEmail = $this->payload['from_email'];
         $fromName = $this->payload['from_name'] ?? null;
         $subject = $this->payload['subject'] ?? '(No Subject)';
-        $body = $this->payload['body'] ?? '(Empty body)';
+        $rawBody = $this->payload['body'] ?? '(Empty body)';
         $messageId = $this->payload['message_id'] ?? '';
         $inReplyTo = $this->payload['in_reply_to'] ?? null;
         $references = $this->payload['references'] ?? null;
+
+        // Parse and clean the email body (strip reply history, signatures, etc.)
+        $body = $this->parseCleanEmailBody($rawBody);
 
         Log::info('ProcessInboundEmailJob: Processing incoming email.', [
             'from_email' => $fromEmail,
             'subject'    => $subject,
             'message_id' => $messageId,
         ]);
+
+        Log::info('Cleaned Email Body:', ['body' => $body]);
 
         // 1. Duplicate check (just in case)
         if (!empty($messageId) && EmailLog::where('message_id', $messageId)->exists()) {
@@ -401,5 +406,103 @@ PROMPT;
         }
 
         return array_values(array_unique(array_filter($ids)));
+    }
+
+    /**
+     * Parse and clean an inbound email body to extract ONLY the fresh new message.
+     *
+     * Strips:
+     *  - Gmail reply headers:  "On Fri, 19 Jun 2026 at 11:56 PM ... wrote:"
+     *  - Outlook dividers:     "--- Original Message ---" / "________________________________"
+     *  - Apple Mail dividers:  "On ... , at ... , ... wrote:"
+     *  - Generic From: headers appearing mid-body
+     *  - Blockquoted lines (lines starting with ">")
+     *  - Common email signatures ("-- \n", "Sent from my iPhone", etc.)
+     *
+     * Falls back to sanitized full body if parsing yields an empty string.
+     */
+    protected function parseCleanEmailBody(string $textBody): string
+    {
+        $body = $textBody;
+
+        // ----------------------------------------------------------------
+        // STEP 1: Cut at the earliest reply divider line.
+        // We split the body and keep only what comes BEFORE the divider.
+        // ----------------------------------------------------------------
+        $dividerPatterns = [
+            // Gmail: "On Mon, 19 Jun 2026 at 11:56 PM Name <email> wrote:"
+            '/^\s*On\s+.{10,80}\s+wrote:\s*$/m',
+
+            // Outlook: "--- Original Message ---" or "___" horizontal rule
+            '/^\s*-{3,}\s*Original\s+Message\s*-{3,}\s*$/mi',
+            '/^_{10,}$/m',
+
+            // Apple Mail: "On ... , ... wrote:" (multiline variant)
+            '/^\s*On\s+.*,\s*.*\s+wrote:\s*$/mi',
+
+            // Generic "From: user@domain" line appearing mid-body
+            '/^\s*From:\s*.*@.*$/mi',
+
+            // "Sent from my iPhone/iPad/Samsung" etc.
+            '/^\s*Sent from my\s+/mi',
+
+            // Standard email signature delimiter ("-- " on its own line)
+            '/^--\s*$/m',
+
+            // Outlook "*From:*" bold marker
+            '/^\s*\*From:\*.*$/mi',
+
+            // "Get Outlook for iOS/Android"
+            '/^\s*Get Outlook for/mi',
+        ];
+
+        $earliestPos = mb_strlen($body);
+
+        foreach ($dividerPatterns as $pattern) {
+            if (preg_match($pattern, $body, $match, PREG_OFFSET_CAPTURE)) {
+                $pos = $match[0][1];
+                if ($pos < $earliestPos) {
+                    $earliestPos = $pos;
+                }
+            }
+        }
+
+        // Slice the body at the earliest divider found
+        if ($earliestPos < mb_strlen($body)) {
+            $body = mb_substr($body, 0, $earliestPos);
+        }
+
+        // ----------------------------------------------------------------
+        // STEP 2: Strip any remaining blockquoted lines (lines starting with ">")
+        // ----------------------------------------------------------------
+        $lines = explode("\n", $body);
+        $cleanLines = [];
+        foreach ($lines as $line) {
+            // Skip lines that are purely blockquotes
+            if (preg_match('/^\s*>/', $line)) {
+                continue;
+            }
+            $cleanLines[] = $line;
+        }
+        $body = implode("\n", $cleanLines);
+
+        // ----------------------------------------------------------------
+        // STEP 3: Final cleanup — trim whitespace, collapse multiple newlines
+        // ----------------------------------------------------------------
+        $body = preg_replace('/\n{3,}/', "\n\n", $body);
+        $body = trim($body);
+
+        // ----------------------------------------------------------------
+        // STEP 4: Fallback — never return empty; use sanitized original
+        // ----------------------------------------------------------------
+        if (empty($body)) {
+            Log::warning('parseCleanEmailBody: Cleaned body was empty, falling back to raw body.');
+            $body = trim(strip_tags($textBody));
+            if (empty($body)) {
+                $body = '(Empty body)';
+            }
+        }
+
+        return $body;
     }
 }
