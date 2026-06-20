@@ -241,15 +241,15 @@
                             @foreach($ticket->replies as $reply)
                                 <div class="flex items-start gap-4">
                                     <div class="w-10 h-10 rounded-xl bg-slate-100 border border-slate-200/60 flex items-center justify-center font-bold text-sm text-slate-700 flex-shrink-0">
-                                        {{ strtoupper(substr($reply->user ? $reply->user->name : 'Guest', 0, 1)) }}
+                                        {{ strtoupper(substr($reply->user ? $reply->user->name : ($reply->message_type === 'incoming' ? ($ticket->sender_name ?? $ticket->sender_email) : 'Guest'), 0, 1)) }}
                                     </div>
                                     <div class="flex-1 min-w-0">
                                         <div class="bg-white rounded-2xl border border-slate-200/60 p-5 shadow-3xs">
                                             <div class="flex items-center justify-between gap-2 flex-wrap mb-3">
                                                 <div class="flex items-center gap-2">
-                                                    <span class="text-xs font-bold text-slate-900 leading-none">{{ $reply->user ? $reply->user->name : 'Guest' }}</span>
-                                                    <span class="text-[8px] px-2 py-0.5 rounded font-bold uppercase tracking-wider {{ ($reply->user && $reply->user->role === 'admin') ? 'bg-slate-950 text-white shadow-3xs' : (($reply->user && $reply->user->role === 'customer') ? 'bg-slate-200 text-slate-700' : 'bg-emerald-50 text-emerald-800 border border-emerald-100') }}">
-                                                        {{ $reply->user ? $reply->user->role : 'guest' }}
+                                                    <span class="text-xs font-bold text-slate-900 leading-none">{{ $reply->user ? $reply->user->name : ($reply->message_type === 'incoming' ? ($ticket->sender_name ?? $ticket->sender_email) : 'Guest') }}</span>
+                                                    <span class="text-[8px] px-2 py-0.5 rounded font-bold uppercase tracking-wider {{ ($reply->user && $reply->user->role === 'admin') ? 'bg-slate-950 text-white shadow-3xs' : ((($reply->user && $reply->user->role === 'customer') || $reply->message_type === 'incoming') ? 'bg-slate-200 text-slate-700' : 'bg-emerald-50 text-emerald-800 border border-emerald-100') }}">
+                                                        {{ $reply->user ? $reply->user->role : ($reply->message_type === 'incoming' ? 'customer' : 'guest') }}
                                                     </span>
                                                 </div>
                                                 <span class="text-[10px] text-slate-400 font-semibold" title="{{ $reply->created_at }}">{{ $reply->created_at->diffForHumans() }}</span>

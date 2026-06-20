@@ -130,12 +130,12 @@
                     Overview of your support system activity and AI efficiency.
                 </p>
             </div>
-            <div class="flex items-center gap-2">
+            <!-- <div class="flex items-center gap-2">
                 <a href="/admin/tickets" class="bg-slate-955 hover:bg-slate-900 text-white font-bold text-xs py-2.5 px-4 rounded-xl shadow-xs transition duration-200 flex items-center gap-1.5">
                     View Tickets Drawer
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
                 </a>
-            </div>
+            </div> -->
         </div>
 
         <!-- Ticket Stats Grid -->
