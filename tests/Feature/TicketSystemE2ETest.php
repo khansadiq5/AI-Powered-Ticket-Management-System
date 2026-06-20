@@ -135,7 +135,7 @@ class TicketSystemE2ETest extends TestCase
         $response->assertSee('Assign Agent');
 
         // Admin assigns the ticket to Support Agent 1
-        $response = $this->actingAs($admin)->patch("/admin/tickets/{$classifiedTicket->id}/assign", [
+        $response = $this->actingAs($admin)->patch("/tickets/{$classifiedTicket->id}/assign", [
             'assigned_to' => $agent->id,
         ]);
         $this->assertDatabaseHas('tickets', [
@@ -164,7 +164,7 @@ class TicketSystemE2ETest extends TestCase
         $response = $this->actingAs($agent)->get("/agent/tickets/{$classifiedTicket->id}");
         $response->assertStatus(200);
         $response->assertDontSee('Assign Agent');
-        $response->assertSee('Update Status');
+        $response->assertSee('id="status-form"', false);
 
         // Agent updates ticket category to "Technical"
         $response = $this->actingAs($agent)->patch("/agent/tickets/{$classifiedTicket->id}/category", [
@@ -574,7 +574,7 @@ class TicketSystemE2ETest extends TestCase
         
         // Assert the exact numbers
         $response->assertSee('50%');
-        $response->assertSee('180 mins');
+        $response->assertSee('3h 0m');
     }
 
     /**
@@ -816,7 +816,7 @@ class TicketSystemE2ETest extends TestCase
         // Assert the sent mail logged in email logs (to prevent duplicate handling)
         $this->assertDatabaseHas('email_logs', [
             'ticket_id' => $ticket->id,
-            'from' => env('SUPPORT_EMAIL', 'support@helpdesk.com'),
+            'from' => config('mail.from.address'),
             'status' => 'processed',
         ]);
     }

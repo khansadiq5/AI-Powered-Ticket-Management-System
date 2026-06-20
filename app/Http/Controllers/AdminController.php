@@ -19,11 +19,11 @@ class AdminController extends Controller
         $user = Auth::user();
 
         $ticketStats = [
-            'total' => Ticket::whereNotIn('status', ['new', 'processing'])->count(),
+            'total' => Ticket::count(),
             'open' => Ticket::where('status', 'open')->count(),
             'in_progress' => Ticket::where('status', 'in_progress')->count(),
             'resolved' => Ticket::where('status', 'resolved')->count(),
-            'unassigned' => Ticket::unassigned()->whereNotIn('status', ['new', 'processing'])->count(),
+            'unassigned' => Ticket::unassigned()->count(),
         ];
 
         // AI Performance Analytics
@@ -42,12 +42,15 @@ class AdminController extends Controller
         $totalSeconds = 0;
         $resolvedCount = $resolvedTickets->count();
         foreach ($resolvedTickets as $t) {
-            $totalSeconds += $t->updated_at->diffInSeconds($t->created_at);
+            $totalSeconds += abs($t->updated_at->timestamp - $t->created_at->timestamp);
         }
         $averageResolutionSeconds = $resolvedCount > 0 ? $totalSeconds / $resolvedCount : 0;
 
         if ($averageResolutionSeconds == 0) {
             $averageResolutionTimeFormatted = 'N/A';
+        } elseif ($averageResolutionSeconds < 60) {
+            $secs = round($averageResolutionSeconds);
+            $averageResolutionTimeFormatted = "{$secs} secs";
         } else {
             $minutes = round($averageResolutionSeconds / 60);
             if ($minutes < 60) {
@@ -59,12 +62,39 @@ class AdminController extends Controller
             }
         }
 
+        // Charts data
+        $trends = Ticket::selectRaw('DATE(created_at) as date, count(*) as count')
+            ->where('created_at', '>=', now()->subDays(6))
+            ->groupBy('date')
+            ->orderBy('date')
+            ->get();
+
+        $trendLabels = [];
+        $trendData = [];
+        for ($i = 6; $i >= 0; $i--) {
+            $date = now()->subDays($i)->format('Y-m-d');
+            $formattedDate = now()->subDays($i)->format('D, M d');
+            $trendLabels[] = $formattedDate;
+            $match = $trends->firstWhere('date', $date);
+            $trendData[] = $match ? $match->count : 0;
+        }
+
+        $statusCounts = [
+            'open' => $ticketStats['open'],
+            'in_progress' => $ticketStats['in_progress'],
+            'resolved' => $ticketStats['resolved'],
+            'closed' => Ticket::where('status', 'closed')->count(),
+        ];
+
         return view('admin', [
             'user' => $user,
             'ticketStats' => $ticketStats,
             'resolvedByAiCount' => $resolvedByAiCount,
             'percentageSolvedByAi' => $percentageSolvedByAi,
             'averageResolutionTime' => $averageResolutionTimeFormatted,
+            'trendLabels' => $trendLabels,
+            'trendData' => $trendData,
+            'statusCounts' => $statusCounts,
         ]);
     }
 

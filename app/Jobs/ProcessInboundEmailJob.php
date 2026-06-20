@@ -14,6 +14,7 @@ use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 
 class ProcessInboundEmailJob implements ShouldQueue
@@ -148,7 +149,7 @@ class ProcessInboundEmailJob implements ShouldQueue
                             'properties' => [
                                 'category' => [
                                     'type' => 'string',
-                                    'enum' => ['Auth', 'Billing', 'Technical', 'General'],
+                                    'enum' => ['General', 'Refund', 'Technical'],
                                 ],
                                 'resolved' => [
                                     'type' => 'boolean',
@@ -195,7 +196,38 @@ class ProcessInboundEmailJob implements ShouldQueue
                             'body' => $result['reply'],
                         ]);
 
-                        $ticket->sendReplyEmail($reply);
+                        // Outbound mail sending with robust logging & error handling
+                        $userEmail = $ticket->sender_email;
+                        Log::info('Attempting to send email to: ' . $userEmail);
+                        try {
+                            $sentMessage = Mail::to($userEmail)->send(new \App\Mail\TicketReplyMailable($ticket, $reply));
+                            
+                            $sentMessageId = null;
+                            if ($sentMessage && method_exists($sentMessage, 'getMessageId')) {
+                                $sentMessageId = trim($sentMessage->getMessageId(), " \t\n\r\0\x0B<>");
+                            } else {
+                                $sentMessageId = 'reply-' . \Illuminate\Support\Str::random(20) . '@domain.com';
+                            }
+
+                            EmailLog::create([
+                                'message_id' => $sentMessageId,
+                                'from' => '2203051050509@paruluniversity.ac.in',
+                                'subject' => 'Re: ' . $ticket->subject,
+                                'status' => 'processed',
+                                'ticket_id' => $ticket->id,
+                            ]);
+                        } catch (\Exception $e) {
+                            Log::error('Mail failed: ' . $e->getMessage());
+                            
+                            EmailLog::create([
+                                'message_id' => 'fail-' . \Illuminate\Support\Str::random(20) . '@domain.com',
+                                'from' => '2203051050509@paruluniversity.ac.in',
+                                'subject' => 'Re: ' . $ticket->subject,
+                                'status' => 'failed',
+                                'error' => $e->getMessage(),
+                                'ticket_id' => $ticket->id,
+                            ]);
+                        }
 
                         Log::info("ProcessInboundEmailJob: Ticket {$ticket->ticket_number} auto-resolved by AI.");
                     } else {
@@ -253,7 +285,7 @@ Body:
 {$body}
 
 INSTRUCTIONS:
-1. **category**: Classify into exactly one of: Auth, Billing, Technical, General.
+1. **category**: Classify into exactly one of: General, Refund, Technical.
 2. **resolved**: Can this query be fully resolved using ONLY the provided Knowledge Base? (true/false).
 3. **reply**: If resolved is true, generate a polite, direct, and complete response answering the query using the exact instructions from the Knowledge Base. If resolved is false, return an empty string.
 
@@ -269,12 +301,19 @@ PROMPT;
         $targetIds = $this->parseMessageIds($inReplyTo, $references);
 
         if (!empty($targetIds)) {
-            $ticket = Ticket::whereIn('message_id', $targetIds)->first();
+            // Build list of target message IDs both with and without brackets
+            $queryIds = [];
+            foreach ($targetIds as $id) {
+                $queryIds[] = $id;
+                $queryIds[] = "<{$id}>";
+            }
+
+            $ticket = Ticket::whereIn('message_id', $queryIds)->first();
             if ($ticket) {
                 return $ticket;
             }
 
-            $log = EmailLog::whereIn('message_id', $targetIds)
+            $log = EmailLog::whereIn('message_id', $queryIds)
                 ->whereNotNull('ticket_id')
                 ->first();
 

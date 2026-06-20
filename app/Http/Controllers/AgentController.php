@@ -7,6 +7,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
+use App\Mail\TicketReplyMailable;
 
 class AgentController extends Controller
 {
@@ -17,8 +19,12 @@ class AgentController extends Controller
     {
         $user = Auth::user();
 
-        $tickets = Ticket::assignedTo($user->id)
-            ->whereNotIn('status', ['new', 'processing'])
+        $allTicketsQuery = Ticket::assignedTo($user->id)
+            ->whereNotIn('status', ['new', 'processing']);
+
+        $totalCount = $allTicketsQuery->count();
+
+        $tickets = $allTicketsQuery
             ->orderByRaw("CASE priority 
                 WHEN 'urgent' THEN 1 
                 WHEN 'high' THEN 2 
@@ -27,16 +33,63 @@ class AgentController extends Controller
                 ELSE 5 
             END ASC")
             ->orderBy('created_at', 'desc')
+            ->take(5)
             ->get();
 
         $stats = [
-            'total' => $tickets->count(),
-            'open' => $tickets->where('status', 'open')->count(),
-            'in_progress' => $tickets->where('status', 'in_progress')->count(),
-            'resolved' => $tickets->where('status', 'resolved')->count(),
+            'total' => $totalCount,
+            'open' => Ticket::assignedTo($user->id)->where('status', 'open')->count(),
+            'in_progress' => Ticket::assignedTo($user->id)->where('status', 'in_progress')->count(),
+            'resolved' => Ticket::assignedTo($user->id)->where('status', 'resolved')->count(),
         ];
 
         return view('agent', compact('user', 'tickets', 'stats'));
+    }
+
+    /**
+     * Display all assigned tickets for Agent.
+     */
+    public function allTickets(Request $request)
+    {
+        $user = Auth::user();
+
+        $query = Ticket::assignedTo($user->id)
+            ->whereNotIn('status', ['new', 'processing']);
+
+        // Apply filters
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+
+        if ($request->filled('priority')) {
+            $query->where('priority', $request->priority);
+        }
+
+        if ($request->filled('category')) {
+            $query->where('category', $request->category);
+        }
+
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('ticket_number', 'like', "%{$search}%")
+                    ->orWhere('subject', 'like', "%{$search}%")
+                    ->orWhere('sender_email', 'like', "%{$search}%");
+            });
+        }
+
+        $tickets = $query
+            ->orderByRaw("CASE priority 
+                WHEN 'urgent' THEN 1 
+                WHEN 'high' THEN 2 
+                WHEN 'medium' THEN 3 
+                WHEN 'low' THEN 4 
+                ELSE 5 
+            END ASC")
+            ->orderBy('created_at', 'desc')
+            ->paginate(15);
+
+        return view('agent-all-tickets', compact('user', 'tickets'));
     }
 
     /**
@@ -52,8 +105,9 @@ class AgentController extends Controller
         }
 
         $ticket->load('replies.user');
+        $agents = \App\Models\User::whereIn('role', ['agent', 'admin'])->orderBy('name')->get();
 
-        return view('ticket-detail', compact('user', 'ticket'));
+        return view('ticket-detail', compact('user', 'ticket', 'agents'));
     }
 
     /**
@@ -97,7 +151,7 @@ class AgentController extends Controller
         }
 
         $validated = $request->validate([
-            'category' => ['required', 'in:General,Refund,Technical,Auth,Billing'],
+            'category' => ['required', 'in:General,Refund,Technical'],
         ]);
 
         $ticket->update(['category' => $validated['category']]);
@@ -133,7 +187,38 @@ class AgentController extends Controller
             'body' => $validated['body'],
         ]);
 
-        $ticket->sendReplyEmail($reply);
+        // Outbound mail sending with robust logging & error handling
+        $userEmail = $ticket->sender_email;
+        Log::info('Attempting to send email to: ' . $userEmail);
+        try {
+            $sentMessage = Mail::to($userEmail)->send(new TicketReplyMailable($ticket, $reply));
+            
+            $sentMessageId = null;
+            if ($sentMessage && method_exists($sentMessage, 'getMessageId')) {
+                $sentMessageId = trim($sentMessage->getMessageId(), " \t\n\r\0\x0B<>");
+            } else {
+                $sentMessageId = 'reply-' . \Illuminate\Support\Str::random(20) . '@domain.com';
+            }
+
+            \App\Models\EmailLog::create([
+                'message_id' => $sentMessageId,
+                'from' => '2203051050509@paruluniversity.ac.in',
+                'subject' => 'Re: ' . $ticket->subject,
+                'status' => 'processed',
+                'ticket_id' => $ticket->id,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Mail failed: ' . $e->getMessage());
+            
+            \App\Models\EmailLog::create([
+                'message_id' => 'fail-' . \Illuminate\Support\Str::random(20) . '@domain.com',
+                'from' => '2203051050509@paruluniversity.ac.in',
+                'subject' => 'Re: ' . $ticket->subject,
+                'status' => 'failed',
+                'error' => $e->getMessage(),
+                'ticket_id' => $ticket->id,
+            ]);
+        }
 
         if ($request->expectsJson() || $request->ajax()) {
             return response()->json([

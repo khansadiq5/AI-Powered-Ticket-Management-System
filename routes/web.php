@@ -31,16 +31,17 @@ Route::middleware('auth')->group(function () {
         Route::post('/admin/users', [AdminController::class, 'createUser']);
         Route::put('/admin/users/{user}', [AdminController::class, 'updateUser']);
         Route::DELETE('/admin/users/{user}', [AdminController::class, 'deleteUser']);
+        Route::patch('/tickets/{ticket}/assign', [AdminController::class, 'assignTicket']);
 
         // Admin Ticket Management
         Route::get('/admin/tickets', [AdminController::class, 'tickets']);
         Route::get('/admin/tickets/{ticket}', [AdminController::class, 'showTicket']);
-        Route::patch('/admin/tickets/{ticket}/assign', [AdminController::class, 'assignTicket']);
     });
 
     // Agent Routes
     Route::middleware('agent')->group(function () {
         Route::get('/agent', [AgentController::class, 'index']);
+        Route::get('/agent/tickets', [AgentController::class, 'allTickets']);
         Route::get('/agent/tickets/{ticket}', [AgentController::class, 'show']);
         Route::patch('/agent/tickets/{ticket}/status', [AgentController::class, 'updateStatus']);
         Route::patch('/agent/tickets/{ticket}/category', [AgentController::class, 'updateCategory']);

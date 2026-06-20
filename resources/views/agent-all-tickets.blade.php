@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ticket Management — All Tickets</title>
+    <title>Ticket Management — My Tickets</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -81,11 +81,9 @@
         <!-- Center: Desktop Navigation Links -->
         <div class="hidden md:flex items-center gap-1 h-full">
             @if($user->role === 'admin')
-                <a href="/admin" class="{{ Request::is('admin') ? 'bg-slate-900 text-white font-semibold shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 font-medium' }} text-sm px-4 py-2 rounded-xl transition duration-250">Dashboard</a>
-                <a href="/admin/users" class="{{ Request::is('admin/users*') ? 'bg-slate-900 text-white font-semibold shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 font-medium' }} text-sm px-4 py-2 rounded-xl transition duration-250">Users</a>
-                <a href="/admin/tickets" class="{{ Request::is('admin/tickets*') || (Request::is('agent/tickets*') && $user->role === 'admin') ? 'bg-slate-900 text-white font-semibold shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 font-medium' }} text-sm px-4 py-2 rounded-xl transition duration-250">Tickets</a>
-            @else
-                <a href="/agent" class="bg-slate-900 text-white font-semibold shadow-xs text-sm px-4 py-2 rounded-xl transition duration-250">My Tickets</a>
+                <a href="/admin" class="text-slate-655 hover:text-slate-900 hover:bg-slate-100/70 font-medium text-sm px-4 py-2 rounded-xl transition duration-250">Dashboard</a>
+                <a href="/admin/users" class="text-slate-655 hover:text-slate-900 hover:bg-slate-100/70 font-medium text-sm px-4 py-2 rounded-xl transition duration-250">Users</a>
+                <a href="/admin/tickets" class="text-slate-655 hover:text-slate-900 hover:bg-slate-100/70 font-medium text-sm px-4 py-2 rounded-xl transition duration-250">Tickets</a>
             @endif
         </div>
 
@@ -143,16 +141,14 @@
                 </div>
                 
                 <!-- Navigation -->
+                @if($user->role === 'admin')
                 <div class="flex flex-col gap-1">
                     <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-3 mb-2">Navigation</span>
-                    @if($user->role === 'admin')
-                        <a href="/admin" class="text-slate-600 hover:text-slate-900 hover:bg-slate-50 font-medium text-sm py-2.5 px-3 rounded-xl transition">Dashboard</a>
-                        <a href="/admin/users" class="text-slate-600 hover:text-slate-900 hover:bg-slate-50 font-medium text-sm py-2.5 px-3 rounded-xl transition">Manage Users</a>
-                        <a href="/admin/tickets" class="bg-slate-900 text-white font-semibold shadow-xs text-sm py-2.5 px-3 rounded-xl transition">Tickets</a>
-                    @else
-                        <a href="/agent" class="bg-slate-900 text-white font-semibold shadow-xs text-sm py-2.5 px-3 rounded-xl transition">My Tickets</a>
-                    @endif
+                    <a href="/admin" class="text-slate-600 hover:text-slate-900 hover:bg-slate-50 font-medium text-sm py-2.5 px-3 rounded-xl transition">Dashboard</a>
+                    <a href="/admin/users" class="text-slate-600 hover:text-slate-900 hover:bg-slate-50 font-medium text-sm py-2.5 px-3 rounded-xl transition">Manage Users</a>
+                    <a href="/admin/tickets" class="text-slate-600 hover:text-slate-900 hover:bg-slate-50 font-medium text-sm py-2.5 px-3 rounded-xl transition">Tickets</a>
                 </div>
+                @endif
             </div>
             
             <!-- Sign out -->
@@ -171,13 +167,13 @@
 
         <!-- Page Header -->
         <div class="mb-8">
-            <h1 class="text-3xl font-extrabold tracking-tight text-slate-955 leading-none">Support Tickets</h1>
-            <p class="text-sm text-slate-500 mt-2">Filter, search, and assign student inquiries across agents.</p>
+            <h1 class="text-3xl font-extrabold tracking-tight text-slate-955 leading-none">My Assigned Tickets</h1>
+            <p class="text-sm text-slate-500 mt-2">Filter and search across all tickets currently assigned to you.</p>
         </div>
 
         <!-- Filter Card - Single Line layout -->
         <div class="bg-white/80 backdrop-blur-md rounded-2xl border border-slate-200/60 p-4 mb-8 shadow-xs">
-            <form method="GET" action="/admin/tickets" class="w-full m-0 flex flex-col lg:flex-row items-stretch lg:items-center gap-3">
+            <form method="GET" action="/agent/tickets" class="w-full m-0 flex flex-col lg:flex-row items-stretch lg:items-center gap-3">
                 <!-- Search bar -->
                 <div class="relative flex-1 min-w-0 w-full" style="flex-grow: 1; min-width: 300px;">
                     <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
@@ -215,20 +211,11 @@
                         <option value="Technical" {{ request('category') === 'Technical' ? 'selected' : '' }}>Technical</option>
                     </select>
 
-                    <!-- Agent -->
-                    <select name="assigned_to" class="custom-select py-2 px-3 text-xs min-w-[110px]">
-                        <option value="">Agent</option>
-                        <option value="unassigned" {{ request('assigned_to') === 'unassigned' ? 'selected' : '' }}>Unassigned</option>
-                        @foreach($agents as $ag)
-                        <option value="{{ $ag->id }}" {{ request('assigned_to') == $ag->id ? 'selected' : '' }}>{{ $ag->name }}</option>
-                        @endforeach
-                    </select>
-
                     <button type="submit" class="bg-slate-950 hover:bg-slate-900 text-white font-bold rounded-xl py-2 px-4 text-xs transition shadow-sm cursor-pointer ml-auto lg:ml-0">
                         Apply
                     </button>
-                    @if(request()->anyFilled(['status', 'priority', 'category', 'assigned_to', 'search']))
-                    <a href="/admin/tickets" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl py-2 px-3.5 text-xs transition">
+                    @if(request()->anyFilled(['status', 'priority', 'category', 'search']))
+                    <a href="/agent/tickets" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl py-2 px-3.5 text-xs transition">
                         Reset
                     </a>
                     @endif
@@ -247,7 +234,6 @@
                             <th class="px-6 py-4 font-bold hidden md:table-cell">Sender</th>
                             <th class="px-6 py-4 font-bold">Priority</th>
                             <th class="px-6 py-4 font-bold">Status</th>
-                            <th class="px-6 py-4 font-bold hidden lg:table-cell">Assigned Agent</th>
                             <th class="px-6 py-4 font-bold hidden lg:table-cell">Created Date & Time</th>
                         </tr>
                     </thead>
@@ -265,7 +251,6 @@
                                 </td>
                                 <td class="px-6 py-4"><div class="h-5 bg-slate-100 rounded-full w-14"></div></td>
                                 <td class="px-6 py-4"><div class="h-5 bg-slate-100 rounded-full w-14"></div></td>
-                                <td class="px-6 py-4 hidden lg:table-cell"><div class="h-4 bg-slate-100 rounded w-20"></div></td>
                                 <td class="px-6 py-4 hidden lg:table-cell"><div class="h-4 bg-slate-100 rounded w-28"></div></td>
                             </tr>
                         @endfor
@@ -303,20 +288,6 @@
                             <!-- Status -->
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <span class="badge-{{ $ticket->status }} text-[9px] px-2.5 py-1 rounded-lg border font-bold uppercase tracking-wider">{{ str_replace('_', ' ', $ticket->status) }}</span>
-                            </td>
-
-                            <!-- Assigned Agent -->
-                            <td class="px-6 py-4 hidden lg:table-cell whitespace-nowrap text-xs text-slate-500 font-semibold">
-                                @if($ticket->assignedAgent)
-                                    <div class="flex items-center gap-1.5">
-                                        <div class="w-5 h-5 rounded-md bg-slate-100 flex items-center justify-center font-bold text-[10px] text-slate-600">
-                                            {{ strtoupper(substr($ticket->assignedAgent->name, 0, 1)) }}
-                                        </div>
-                                        <span class="text-slate-850 font-bold">{{ $ticket->assignedAgent->name }}</span>
-                                    </div>
-                                @else
-                                    <span class="text-slate-400 italic">Unassigned</span>
-                                @endif
                             </td>
 
                             <!-- Created Date & Time -->

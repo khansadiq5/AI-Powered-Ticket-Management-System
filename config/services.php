@@ -16,6 +16,8 @@ return [
 
     'postmark' => [
         'key' => env('POSTMARK_API_KEY'),
+        'inbound_address' => env('POSTMARK_INBOUND_ADDRESS'),
+        'webhook_token' => env('POSTMARK_WEBHOOK_TOKEN'),
     ],
 
     'resend' => [
@@ -46,11 +48,6 @@ return [
         'username' => env('IMAP_USERNAME'),
         'password' => env('IMAP_PASSWORD'),
         'folder' => env('IMAP_FOLDER', 'INBOX'),
-    ],
-
-    'postmark' => [
-        'inbound_address' => env('POSTMARK_INBOUND_ADDRESS'),
-        'webhook_token' => env('POSTMARK_WEBHOOK_TOKEN'),
     ],
 
 ];

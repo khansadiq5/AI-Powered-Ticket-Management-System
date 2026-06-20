@@ -57,7 +57,6 @@ class PostmarkWebhookController extends Controller
         $subject   = $request->input('Subject', '(No Subject)');
         $textBody  = $request->input('TextBody', '');
         $htmlBody  = $request->input('HtmlBody', '');
-        $messageId = $request->input('MessageID', '');
         $body      = !empty($textBody) ? $textBody : strip_tags($htmlBody);
 
         if (empty($body)) {
@@ -68,6 +67,14 @@ class PostmarkWebhookController extends Controller
         $headers     = collect($request->input('Headers', []));
         $inReplyTo   = $this->getHeaderValue($headers, 'In-Reply-To');
         $references  = $this->getHeaderValue($headers, 'References');
+
+        // Extract the original Message-ID header if available, fallback to Postmark MessageID
+        $originalMessageId = $this->getHeaderValue($headers, 'Message-ID');
+        if (!empty($originalMessageId)) {
+            $messageId = trim($originalMessageId, " \t\n\r\0\x0B<>");
+        } else {
+            $messageId = $request->input('MessageID', '');
+        }
 
         Log::info('PostmarkWebhook: Dispatching inbound email processing job.', [
             'from_email'  => $fromEmail,

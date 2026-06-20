@@ -167,6 +167,7 @@ class Ticket extends Model
         try {
             $sentMessage = Mail::send([], [], function ($message) use ($reply) {
                 $message->to($this->sender_email, $this->sender_name)
+                        ->replyTo(env('POSTMARK_INBOUND_ADDRESS'))
                         ->subject('Re: ' . $this->subject)
                         ->text($reply->body);
 
@@ -186,7 +187,7 @@ class Ticket extends Model
 
             \App\Models\EmailLog::create([
                 'message_id' => $sentMessageId,
-                'from' => env('SUPPORT_EMAIL', 'support@helpdesk.com'),
+                'from' => config('mail.from.address'),
                 'subject' => 'Re: ' . $this->subject,
                 'status' => 'processed',
                 'ticket_id' => $this->id,
