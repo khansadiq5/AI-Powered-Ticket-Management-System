@@ -398,8 +398,9 @@ Polished response (2-3 lines):";
 
         $conversation = "Customer ({$sender}): {$ticketBody}\n";
         foreach ($replies as $reply) {
-            $roleName = ucfirst($reply->user->role);
-            $conversation .= "{$roleName} ({$reply->user->name}): {$reply->body}\n";
+            $roleName = $reply->user ? ucfirst($reply->user->role) : 'Guest';
+            $userName = $reply->user ? $reply->user->name : 'Guest';
+            $conversation .= "{$roleName} ({$userName}): {$reply->body}\n";
         }
 
         $prompt = "You are a professional customer support assistant. Your task is to summarize the following support ticket and its entire conversation history.

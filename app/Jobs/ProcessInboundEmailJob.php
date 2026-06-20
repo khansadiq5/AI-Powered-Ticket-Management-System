@@ -66,29 +66,61 @@ class ProcessInboundEmailJob implements ShouldQueue
             return;
         }
 
-        // 3. Create a new ticket (starts in 'new' status)
-        $ticket = Ticket::create([
-            'subject'      => $subject,
-            'body'         => $body,
-            'sender_name'  => $fromName,
-            'sender_email' => $fromEmail,
-            'status'       => 'new',
-            'priority'     => 'medium',
-            'message_id'   => !empty($messageId) ? $messageId : null,
-            'source'       => 'email',
-        ]);
+        // Check if user exists in the database
+        $existingUser = User::where('email', $fromEmail)->first();
 
-        // Log the processed email
-        EmailLog::create([
-            'message_id' => !empty($messageId) ? $messageId : 'postmark-' . now()->timestamp . '-' . Str::random(8),
-            'from'       => $fromEmail,
-            'subject'    => $subject,
-            'status'     => 'processed',
-            'ticket_id'  => $ticket->id,
-        ]);
+        if ($existingUser) {
+            // 3. Create a new ticket for existing user (starts in 'new' status, will be auto-assigned to AI)
+            $ticket = Ticket::create([
+                'subject'      => $subject,
+                'body'         => $body,
+                'sender_name'  => $fromName,
+                'sender_email' => $fromEmail,
+                'status'       => 'new',
+                'priority'     => 'medium',
+                'message_id'   => !empty($messageId) ? $messageId : null,
+                'source'       => 'email',
+            ]);
 
-        // 4. Run AI classification & Auto-Resolution
-        $this->processAI($ticket);
+            // Log the processed email
+            EmailLog::create([
+                'message_id' => !empty($messageId) ? $messageId : 'postmark-' . now()->timestamp . '-' . Str::random(8),
+                'from'       => $fromEmail,
+                'subject'    => $subject,
+                'status'     => 'processed',
+                'ticket_id'  => $ticket->id,
+            ]);
+
+            // 4. Run AI classification & Auto-Resolution
+            $this->processAI($ticket);
+        } else {
+            // Guest/Unknown email: create the ticket with 'open' status and unassigned
+            $ticket = Ticket::create([
+                'subject'      => $subject,
+                'body'         => $body,
+                'sender_name'  => $fromName,
+                'sender_email' => $fromEmail, // Raw email string saved directly in sender_email
+                'status'       => 'open',     // status 'open' so admin can review it
+                'priority'     => 'medium',
+                'assigned_to'  => null,       // unassigned
+                'message_id'   => !empty($messageId) ? $messageId : null,
+                'source'       => 'email',
+            ]);
+
+            // Log the processed email
+            EmailLog::create([
+                'message_id' => !empty($messageId) ? $messageId : 'postmark-' . now()->timestamp . '-' . Str::random(8),
+                'from'       => $fromEmail,
+                'subject'    => $subject,
+                'status'     => 'processed',
+                'ticket_id'  => $ticket->id,
+            ]);
+
+            Log::info('ProcessInboundEmailJob: Created guest ticket (no user record created).', [
+                'ticket_number' => $ticket->ticket_number,
+                'sender_email'  => $fromEmail,
+            ]);
+        }
     }
 
     /**
@@ -348,18 +380,10 @@ PROMPT;
     {
         $customerUser = User::where('email', $fromEmail)->first();
 
-        if (!$customerUser) {
-            $customerUser = User::create([
-                'name'     => $fromName ?? explode('@', $fromEmail)[0],
-                'email'    => $fromEmail,
-                'password' => Hash::make(Str::random(32)),
-                'role'     => 'customer',
-            ]);
-        }
-
+        // Save reply thread - user_id is nullable for guests
         TicketReply::create([
             'ticket_id'    => $ticket->id,
-            'user_id'      => $customerUser->id,
+            'user_id'      => $customerUser ? $customerUser->id : null,
             'body'         => $body,
             'message_type' => 'incoming',
         ]);
@@ -378,6 +402,7 @@ PROMPT;
 
         Log::info('ProcessInboundEmailJob: Reply appended to existing ticket.', [
             'ticket_number' => $ticket->ticket_number,
+            'user_type'     => $customerUser ? 'user' : 'guest',
         ]);
     }
 
