@@ -3,12 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Models\Ticket;
+use App\Models\EmailLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
-use App\Mail\TicketReplyMailable;
+use Illuminate\Support\Str;
+use App\Mail\AdminReplyMailable;
 
 class AgentController extends Controller
 {
@@ -168,7 +170,7 @@ class AgentController extends Controller
     }
 
     /**
-     * Store a new reply for a ticket.
+     * Store a new reply for a ticket and dispatch outbound email via queue.
      */
     public function storeReply(Request $request, Ticket $ticket)
     {
@@ -182,44 +184,52 @@ class AgentController extends Controller
             'body' => ['required', 'string', 'min:1'],
         ]);
 
+        // 1. Save the reply to the database thread
         $reply = $ticket->replies()->create([
             'user_id' => $user->id,
             'body' => $validated['body'],
         ]);
 
-        // Outbound mail sending with robust logging & error handling
-        $userEmail = $ticket->sender_email;
-        Log::info('Attempting to send email to: ' . $userEmail);
-        try {
-            $sentMessage = Mail::to($userEmail)->send(new TicketReplyMailable($ticket, $reply));
-            
-            $sentMessageId = null;
-            if ($sentMessage && method_exists($sentMessage, 'getMessageId')) {
-                $sentMessageId = trim($sentMessage->getMessageId(), " \t\n\r\0\x0B<>");
-            } else {
-                $sentMessageId = 'reply-' . \Illuminate\Support\Str::random(20) . '@domain.com';
-            }
+        // 2. Identify the ticket owner's email
+        $customerEmail = $ticket->sender_email;
 
-            \App\Models\EmailLog::create([
-                'message_id' => $sentMessageId,
-                'from' => '2203051050509@paruluniversity.ac.in',
-                'subject' => 'Re: ' . $ticket->subject,
-                'status' => 'processed',
-                'ticket_id' => $ticket->id,
+        // 3. Dispatch outbound email asynchronously via Laravel Queue
+        $mailQueued = false;
+        try {
+            Mail::to($customerEmail)->queue(new AdminReplyMailable($ticket, $reply));
+            $mailQueued = true;
+
+            Log::info('Admin reply email queued successfully for: ' . $customerEmail, [
+                'ticket_id'     => $ticket->id,
+                'ticket_number' => $ticket->ticket_number,
+                'reply_id'      => $reply->id,
+                'agent'         => $user->name,
             ]);
         } catch (\Exception $e) {
-            Log::error('Mail failed: ' . $e->getMessage());
-            
-            \App\Models\EmailLog::create([
-                'message_id' => 'fail-' . \Illuminate\Support\Str::random(20) . '@domain.com',
-                'from' => '2203051050509@paruluniversity.ac.in',
-                'subject' => 'Re: ' . $ticket->subject,
-                'status' => 'failed',
-                'error' => $e->getMessage(),
-                'ticket_id' => $ticket->id,
+            Log::error('Admin reply email queuing failed: ' . $e->getMessage(), [
+                'ticket_id'     => $ticket->id,
+                'ticket_number' => $ticket->ticket_number,
+                'reply_id'      => $reply->id,
+                'customer'      => $customerEmail,
+                'trace'         => $e->getTraceAsString(),
             ]);
         }
 
+        // 4. Log the outbound email attempt (separate try-catch so DB errors don't mask mail success)
+        try {
+            EmailLog::create([
+                'message_id' => ($mailQueued ? 'queued-reply-' : 'fail-') . Str::random(20) . '@helpdesk.local',
+                'from'       => config('mail.from.address'),
+                'subject'    => 'Re: [' . $ticket->ticket_number . '] ' . $ticket->subject,
+                'status'     => $mailQueued ? 'queued' : 'failed',
+                'error'      => $mailQueued ? null : 'Mail dispatch failed',
+                'ticket_id'  => $ticket->id,
+            ]);
+        } catch (\Exception $e) {
+            Log::warning('EmailLog write failed (mail was ' . ($mailQueued ? 'queued' : 'NOT queued') . '): ' . $e->getMessage());
+        }
+
+        // 4. Return response (page never freezes — mail is queued in background)
         if ($request->expectsJson() || $request->ajax()) {
             return response()->json([
                 'success' => true,
