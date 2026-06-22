@@ -2,7 +2,7 @@
 
 ## 🏁 Project Objective
 
-SmartDesk AI is an event-driven support ecosystem that turns raw email conversations into clean, structured helpdesk tickets. The core goal is to remove the friction of standard support setups: customers don't need to sign up or log into any separate portal—they simply use their everyday email client (like Gmail). 
+HelpDesk AI is an event-driven support ecosystem that turns raw email conversations into clean, structured helpdesk tickets. The core goal is to remove the friction of standard support setups: customers don't need to sign up or log into any separate portal—they simply use their everyday email client (like Gmail). 
 
 On the other side, support agents get a unified, role-based web dashboard built in Laravel to manage incoming requests, view organized chat logs, and use Gemini AI to automatically generate contextual drafts and key summaries—all synchronized perfectly back into the user's single email thread.
 
