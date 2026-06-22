@@ -168,13 +168,13 @@ Full Stack Web Development | Cloud-Mail Network Integration | Enterprise Automat
 ## 📷 Project Preview
 
 ### Helpdesk Dashboard
-![Dashboard Preview](https://github.com/khansadiq5/ai-leadflow-crm/blob/main/public/screenshots/Dashboard.png)
+![Dashboard Preview](https://github.com/khansadiq5/AI-Powered-Ticket-Management-System/blob/main/public/Image/Dashboard.png)
 
 ### Ticket Management & Queue
-![Ticket Preview](https://github.com/khansadiq5/ai-leadflow-crm/blob/main/public/screenshots/Tickets.png)
+![Ticket Preview](https://github.com/khansadiq5/AI-Powered-Ticket-Management-System/blob/main/public/Image/Ticket%20management.png)
 
 ### AI Solution Generation
-![AI Features Preview](https://github.com/khansadiq5/ai-leadflow-crm/blob/main/public/screenshots/AI%20Feature.png)
+![AI Features Preview](https://github.com/khansadiq5/AI-Powered-Ticket-Management-System/blob/main/public/Image/Ai%20replies.png)
 
 ---
 
@@ -182,3 +182,4 @@ Full Stack Web Development | Cloud-Mail Network Integration | Enterprise Automat
 
 Clone the repository:
 ```bash
+https://github.com/khansadiq5/AI-Powered-Ticket-Management-System.git
